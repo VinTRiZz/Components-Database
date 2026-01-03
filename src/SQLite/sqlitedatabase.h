@@ -1,39 +1,37 @@
-#ifndef SQLITEDATABASE_H
-#define SQLITEDATABASE_H
+#pragma once
 
+#include <string>
 #include <memory>
-#include <vector>
 
-#include "sqlitequery.h"
-
-namespace SQLiteAdapter
+namespace Database
 {
 
 class SQLiteQuery;
-
 class SQLiteDatabase
 {
 public:
     SQLiteDatabase();
     ~SQLiteDatabase();
 
+    static void setThreadsafe();
+
     void setDatabase(const std::string& filePath);
-    bool open();
-    bool open(const std::string& filePath);
+
+    bool open(const std::string& filePath = {});
+    bool isOpen() const;
     void close();
+
     bool save();
 
-    SQLiteQuery query();
+    bool beginTransaction();
+    bool commitTransaction();
+    bool rollbackTransaction();
+
     std::string lastError() const;
 
 private:
-    bool exec(const std::string &queryStr, const std::function<void (int argc, char **argv, char **azColName)> addRowCallback, std::string &queryErrorMessage);
     struct Impl;
     std::shared_ptr<Impl> d;
-
-    friend class SQLiteQuery;
 };
 
 }
-
-#endif // SQLITEDATABASE_H

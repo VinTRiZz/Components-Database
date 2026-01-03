@@ -1,33 +1,20 @@
 #include "sqlitedatabase.h"
-#include "sqlitequery.h"
-
-#include <vector>
-#include <list>
-#include <map>
-
-#include <sqlite3.h>
 
 #include <Components/Logger/Logger.h>
 
-namespace SQLiteAdapter
+#include <sqlite3.h>
+
+#include "sqliteexecutor.hpp"
+
+namespace Database
 {
-
-static int callback(void *data, int argc, char **argv, char **azColName) {
-
-    auto querryCallback = *reinterpret_cast< std::function<void (int argc, char **argv, char **azColName)>* >(data);
-    RowValue row;
-    querryCallback(argc, argv, azColName);
-    return 0;
-}
 
 struct SQLiteDatabase::Impl
 {
-    // Handify
+    sqlite3* dbConnection {nullptr};
+
     std::string dbPath;
     std::string lastErrorMessage;
-
-    // SQLite C library things
-    sqlite3 *db {nullptr};
 };
 
 SQLiteDatabase::SQLiteDatabase() :
@@ -38,7 +25,15 @@ SQLiteDatabase::SQLiteDatabase() :
 
 SQLiteDatabase::~SQLiteDatabase()
 {
+    if (isOpen()) {
+        close();
+    }
+}
 
+void SQLiteDatabase::setThreadsafe()
+{
+    sqlite3_config(SQLITE_CONFIG_SERIALIZED);
+    sqlite3_initialize();
 }
 
 void SQLiteDatabase::setDatabase(const std::string &filePath)
@@ -46,61 +41,86 @@ void SQLiteDatabase::setDatabase(const std::string &filePath)
     d->dbPath = filePath;
 }
 
-bool SQLiteDatabase::open()
+bool SQLiteDatabase::open(const std::string &filePath)
 {
-    if (sqlite3_open(d->dbPath.c_str(), &d->db)) {
-        d->lastErrorMessage = sqlite3_errmsg(d->db);
+    if (!filePath.empty()) {
+        d->dbPath = filePath;
+    }
+
+    if (d->dbPath.empty()) {
+        d->lastErrorMessage = "Empty database file path";
+        return false;
+    }
+
+    if (sqlite3_open(d->dbPath.c_str(), &d->dbConnection)) {
+        d->lastErrorMessage = sqlite3_errmsg(d->dbConnection);
         return false;
     }
 
     return true;
 }
 
-bool SQLiteDatabase::open(const std::string &filePath)
+bool SQLiteDatabase::isOpen() const
 {
-    d->dbPath = filePath;
-    return open();
+    if (d->dbConnection == NULL) {
+        return false;
+    }
+
+    int highwater = 0;
+    int current = 0;
+    int rc = sqlite3_db_status(d->dbConnection, SQLITE_DBSTATUS_LOOKASIDE_USED, &current, &highwater, 0);
+
+    return (rc == SQLITE_OK) ? 1 : 0;
 }
 
 void SQLiteDatabase::close()
 {
-    sqlite3_close(d->db);
+    sqlite3_close(d->dbConnection);
 }
 
 bool SQLiteDatabase::save()
 {
+    if (!isOpen()) {
+        d->lastErrorMessage = "Database is not open";
+        return false;
+    }
     close();
     return open(d->dbPath);
 }
 
-SQLiteQuery SQLiteDatabase::query()
+bool SQLiteDatabase::beginTransaction()
 {
-    SQLiteQuery result(*this);
-    return result;
+    auto executor = SQLiteExecutor(d->dbConnection);
+    auto res = executor.exec("BEGIN TRANSACTION");
+    if (!res) {
+        d->lastErrorMessage = executor.getError();
+    }
+    return res.has_value();
+}
+
+bool SQLiteDatabase::commitTransaction()
+{
+    auto executor = SQLiteExecutor(d->dbConnection);
+    auto res = executor.exec("COMMIT");
+    if (!res) {
+        d->lastErrorMessage = executor.getError();
+    }
+    return res.has_value();
+}
+
+bool SQLiteDatabase::rollbackTransaction()
+{
+    auto executor = SQLiteExecutor(d->dbConnection);
+    auto res = executor.exec("ROLLBACK");
+    if (!res) {
+        d->lastErrorMessage = executor.getError();
+    }
+    return res.has_value();
 }
 
 std::string SQLiteDatabase::lastError() const
 {
     return d->lastErrorMessage;
-}
-
-bool SQLiteDatabase::exec(const std::string &queryStr, const std::function<void (int, char **, char **)> addRowCallback, std::string& queryErrorMessage)
-{
-    LOG_EMPTY("EXECUTING QUERY:\n", queryStr.c_str(), "\n");
-
-    char *errorMessage {nullptr};
-
-    auto pCallback = &addRowCallback;
-
-    // Execute SQL statement
-    if (sqlite3_exec(d->db, queryStr.c_str(), callback, (void*)pCallback, &errorMessage) != SQLITE_OK) {
-        queryErrorMessage = errorMessage;
-        sqlite3_free(errorMessage);
-        LOG_ERROR("EXECUTE ERROR");
-        return false;
-    }
-    LOG_OK("EXECUTE SUCCEED");
-    return true;
 }
 
 }
