@@ -15,12 +15,6 @@ public:
     struct ColumnInfo
     {
         std::string name;
-
-        enum ColumnType : int {
-            CT_UNDEFINED = -1,
-            CT_INTEGER,
-            CT_TEXT,
-        };
         ColumnType type;
 
         bool isPrimaryKey {false};
@@ -34,6 +28,7 @@ public:
     SQLiteTable(const std::string& tableName, SQLiteDatabase& db);
 
     std::string getName() const;
+    bool isTableExist() const;
 
     bool create(const std::list<ColumnInfo>& columns);
     bool addColumn(const ColumnInfo& columnConfig);
@@ -50,9 +45,6 @@ public:
 private:
     std::string m_name;
     std::list<ColumnInfo> m_columns;
-
-    std::string columnTypeToText(ColumnInfo::ColumnType ct) const;
-    ColumnInfo::ColumnType columnTypeFromText(const std::string& ct) const;
 };
 
 }

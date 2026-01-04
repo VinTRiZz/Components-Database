@@ -42,6 +42,12 @@ std::string SQLiteTable::getName() const
     return m_name;
 }
 
+bool SQLiteTable::isTableExist() const
+{
+    auto res = exec(std::string("PRAGMA table_info(") + m_name + ")");
+    return (res.has_value() && (res.value().size() > 0));
+}
+
 bool SQLiteTable::create(const std::list<ColumnInfo> &columns)
 {
     std::string query = "CREATE TABLE " + m_name + " (";
@@ -196,36 +202,5 @@ std::vector<DBRow> SQLiteTable::getRow(const std::string &whereCondition, const 
 //    m_currentValueIt = m_querryRows.begin();
     //    return true;
 }
-
-std::string SQLiteTable::columnTypeToText(ColumnInfo::ColumnType ct) const
-{
-    switch (ct)
-    {
-    case ColumnInfo::CT_UNDEFINED:
-        return "[UNDEFINED_COLUMN_TYPE]";
-
-    case ColumnInfo::CT_INTEGER:
-        return "INTEGER";
-
-    case ColumnInfo::CT_TEXT:
-        return "TEXT";
-    }
-
-    return {};
-}
-
-SQLiteTable::ColumnInfo::ColumnType SQLiteTable::columnTypeFromText(const std::string &ct) const
-{
-    if (ct == "INTEGER") {
-        return ColumnInfo::CT_INTEGER;
-    }
-
-    if (ct == "TEXT") {
-        return ColumnInfo::CT_TEXT;
-    }
-
-    return ColumnInfo::CT_UNDEFINED;
-}
-
 
 }

@@ -20,13 +20,24 @@
 namespace Database
 {
 
-using CellStringValue = std::optional<std::string>;
-using CellIntegerValue = std::optional<int64_t>;
+using DBCellInteger = std::optional<int64_t>;
+using DBCellString = std::optional<std::string>;
 
-typedef std::variant<CellStringValue, CellIntegerValue> DBCell;
+typedef std::variant<DBCellString, DBCellInteger> DBCell;
 typedef std::vector<DBCell> DBRow;
 
 std::string cellDataToString(const DBCell& cellData);
+
+// TODO: Обработать все типы?
+enum ColumnType : int {
+    CT_UNDEFINED = -1,
+    CT_TEXT, // Default type
+    CT_INTEGER,
+    CT_DOUBLE,
+    CT_BYTES,
+};
+std::string columnTypeToText(ColumnType ct);
+ColumnType columnTypeFromText(const std::string& ct);
 
 }
 

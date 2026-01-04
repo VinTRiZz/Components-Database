@@ -21,8 +21,9 @@ class SQLiteExecutor
 public:
     SQLiteExecutor(SQLiteDatabase& db);
 
-    bool prepare(const std::string& queryStr);
-    std::optional<std::vector<DBRow> > exec(const std::string& queryStr = {});
+    bool prepare(const std::string& queryStr) const;
+    bool bind(int parameterNumber, const DBCell& value);
+    std::optional<std::vector<DBRow> > exec(const std::string& queryStr = {}) const;
     bool execAsync(const std::string& queryStr, const std::function<void(std::vector<DBRow>&&)>& execCallback);
 
     std::string getLastQuery() const;
