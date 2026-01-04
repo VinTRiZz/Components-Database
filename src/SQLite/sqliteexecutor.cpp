@@ -117,6 +117,8 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
         d->lastErrorText = "Empty query";
         return std::nullopt;
     }
+
+    LOG_INFO("EXECUTING QUERY:\"", queryStr, "\"");
     if (!queryStr.empty()) {
         if (!prepare(queryStr)) {
             return std::nullopt;
@@ -128,7 +130,6 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
         d->preparedStmt = nullptr;
     } BOOST_SCOPE_EXIT_END;
 
-    LOG_INFO("EXECUTING QUERY:\"", queryStr, "\"");
 
     // Determine column types
     std::map<int, ColumnType> columnTypes;

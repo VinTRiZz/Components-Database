@@ -51,6 +51,11 @@ std::string SQLiteTable::getLastError() const
 
 bool SQLiteTable::create(const std::list<ColumnInfo> &columns)
 {
+    if (columns.empty()) {
+        LOG_ERROR("Can not create table with no columns");
+        return false;
+    }
+
     std::string query = "CREATE TABLE " + m_name + " (";
     std::string foreignKeys;
 
@@ -62,7 +67,7 @@ bool SQLiteTable::create(const std::list<ColumnInfo> &columns)
                 (col.canBeNull ? "" : "NOT NULL ") +
                 (cellDataIsNull(col.defaultValue) ? std::string("DEFAULT ") + cellDataToString(col.defaultValue) : "") +
                 ","
-        ;
+                ;
         if (!col.referedColumn.empty()) {
             foreignKeys +=
                     " FOREIGN KEY (" + col.name +
@@ -87,7 +92,66 @@ bool SQLiteTable::create(const std::list<ColumnInfo> &columns)
 
 bool SQLiteTable::addColumn(const ColumnInfo &columnConfig)
 {
-    return false;
+    // ALTER TABLE table_name ADD COLUMN column_name column_type;
+
+    if (columnConfig.referedColumn.empty()) {
+        auto columnQuery =
+                columnConfig.name + " " +
+                columnTypeToText(columnConfig.type) + " " +
+                (columnConfig.isPrimaryKey ? "PRIMARY KEY AUTOINCREMENT " : "") +
+                (columnConfig.canBeNull ? "" : "NOT NULL ") +
+                (cellDataIsNull(columnConfig.defaultValue) ? std::string("DEFAULT ") + cellDataToString(columnConfig.defaultValue) : "");
+
+        auto res = m_executor->exec(std::string("ALTER TABLE ") + m_name + " ADD COLUMN " + columnQuery).has_value();
+        if (res) {
+            m_columns.push_back(columnConfig);
+
+            // Во избежание ошибок юзера, делаем чистку
+            auto& lastCol = m_columns.back();
+            lastCol.referenceDeleteAction = {};
+            lastCol.referenceUpdateAction = {};
+        }
+        return res;
+    }
+
+    std::string colsQuery;
+    for (auto& col : m_columns) {
+        colsQuery += col.name + ",";
+    }
+    colsQuery.pop_back();
+
+    // Запомним конфиг новой таблицы
+    m_columns.push_back(columnConfig);
+    auto colsCopy = m_columns;
+    auto selfName = m_name;
+    auto tempTableName = std::string("new_") + selfName;
+
+    // Создаём временную таблицу
+    setTable(tempTableName);
+    auto currentOperationRes = create(colsCopy);
+    if (!currentOperationRes) {
+        return false;
+    }
+
+    currentOperationRes = m_executor->exec(std::string("INSERT INTO ") + tempTableName + " SELECT " + colsQuery + ", NULL FROM " + m_name).has_value();
+    if (!currentOperationRes) {
+        return false;
+    }
+
+    setTable(selfName);
+    currentOperationRes = drop();
+    if (!currentOperationRes) {
+        return false;
+    }
+
+    m_columns.push_back(columnConfig);
+    currentOperationRes = m_executor->exec("ALTER TABLE " + tempTableName + " RENAME TO " + selfName).has_value();
+    if (!currentOperationRes) {
+        return false;
+    }
+
+    setTable(selfName);
+    return true;
 }
 
 std::list<SQLiteTable::ColumnInfo> SQLiteTable::getColumns() const
@@ -97,112 +161,158 @@ std::list<SQLiteTable::ColumnInfo> SQLiteTable::getColumns() const
 
 bool SQLiteTable::removeColumn(const std::string &columnName)
 {
-    return false;
+    /*
+    CREATE TABLE new_table_name AS SELECT col1, col3 FROM old_table_name;
+
+    INSERT INTO new_table_name SELECT col1, col3 FROM old_table_name;
+
+    DROP TABLE old_table_name;
+
+    ALTER TABLE new_table_name RENAME TO old_table_name;
+    */
+
+    std::string colsQuery;
+    for (auto& col : m_columns) {
+        if (col.name == columnName) {
+            continue;
+        }
+        colsQuery += col.name + ",";
+    }
+    colsQuery.pop_back();
+
+    auto currentOperationRes = m_executor->exec(std::string("CREATE TABLE new_") + m_name + " AS SELECT " + colsQuery + " FROM " + m_name).has_value();
+    if (!currentOperationRes) {
+        return false;
+    }
+
+    currentOperationRes = m_executor->exec(std::string("INSERT INTO new_") + m_name + " SELECT " + colsQuery + " FROM " + m_name).has_value();
+    if (!currentOperationRes) {
+        return false;
+    }
+
+    auto selfName = m_name;
+    currentOperationRes = drop();
+    if (!currentOperationRes) {
+        return false;
+    }
+
+    currentOperationRes = m_executor->exec("ALTER TABLE new_" + selfName + " RENAME TO " + selfName).has_value();
+    if (!currentOperationRes) {
+        return false;
+    }
+
+    setTable(selfName);
+    return true;
 }
 
 bool SQLiteTable::drop()
 {
-    return m_executor->exec(std::string("DROP TABLE ") + m_name).has_value();
+    auto res = m_executor->exec(std::string("DROP TABLE ") + m_name).has_value();
+    if (res) {
+        m_columns.clear();
+        m_name = {};
+    }
+    return res;
 }
 
 bool SQLiteTable::addRow(DBRow &&rowData)
 {
-//    m_lastQuery = "INSERT INTO ";
-//    m_targetTableName = tableName;
+    //    m_lastQuery = "INSERT INTO ";
+    //    m_targetTableName = tableName;
 
-//    m_lastQuery += tableName + " VALUES (" + getCellValueString(values[0]);
-//    for (std::size_t i = 1; i < values.size(); i++) {
+    //    m_lastQuery += tableName + " VALUES (" + getCellValueString(values[0]);
+    //    for (std::size_t i = 1; i < values.size(); i++) {
 
-//        m_lastQuery += ", " + getCellValueString(values[i]);
-//    }
-//    m_lastQuery += ")";
+    //        m_lastQuery += ", " + getCellValueString(values[i]);
+    //    }
+    //    m_lastQuery += ")";
 
-//    m_querryRows.clear();
-//    if (!defaultExec()) {
-//        return false;
-//    }
-//    m_currentValueIt = m_querryRows.begin();
-//    return true;
+    //    m_querryRows.clear();
+    //    if (!defaultExec()) {
+    //        return false;
+    //    }
+    //    m_currentValueIt = m_querryRows.begin();
+    //    return true;
 }
 
 bool SQLiteTable::addRow(std::map<std::string, DBCell> &&rowNamedData)
 {
     // INSERT INTO tasks VALUES (1, 'test string')
 
-//    m_lastQuery = "INSERT INTO ";
-//    m_targetTableName = tableName;
+    //    m_lastQuery = "INSERT INTO ";
+    //    m_targetTableName = tableName;
 
-//    m_lastQuery += tableName + " VALUES (" + getCellValueString(values[0]);
-//    for (std::size_t i = 1; i < values.size(); i++) {
+    //    m_lastQuery += tableName + " VALUES (" + getCellValueString(values[0]);
+    //    for (std::size_t i = 1; i < values.size(); i++) {
 
-//        m_lastQuery += ", " + getCellValueString(values[i]);
-//    }
-//    m_lastQuery += ")";
+    //        m_lastQuery += ", " + getCellValueString(values[i]);
+    //    }
+    //    m_lastQuery += ")";
 
-//    m_querryRows.clear();
-//    if (!defaultExec()) {
-//        return false;
-//    }
-//    m_currentValueIt = m_querryRows.begin();
-//    return true;
+    //    m_querryRows.clear();
+    //    if (!defaultExec()) {
+    //        return false;
+    //    }
+    //    m_currentValueIt = m_querryRows.begin();
+    //    return true;
 }
 
 bool SQLiteTable::updateRow(std::map<std::string, DBCell> &&rowNamedData, const std::string &whereCondition)
 {
     // UPDATE tasks SET name='Test update' WHERE id=1
 
-//    m_lastQuery = "UPDATE ";
-//    m_targetTableName = tableName;
-//    m_queryColumns = columns;
+    //    m_lastQuery = "UPDATE ";
+    //    m_targetTableName = tableName;
+    //    m_queryColumns = columns;
 
-//    m_lastQuery += tableName + " SET (" + columns[0] + "=" + getCellValueString(values[0]);
-//    int pos = 0;
-//    for (auto& colStr : columns) {
-//        m_lastQuery += ", " + colStr + "=" + getCellValueString(values[pos++]);
-//    }
-//    m_lastQuery += ") " + criteriaStr;
+    //    m_lastQuery += tableName + " SET (" + columns[0] + "=" + getCellValueString(values[0]);
+    //    int pos = 0;
+    //    for (auto& colStr : columns) {
+    //        m_lastQuery += ", " + colStr + "=" + getCellValueString(values[pos++]);
+    //    }
+    //    m_lastQuery += ") " + criteriaStr;
 
-//    m_querryRows.clear();
-//    return defaultExec();
+    //    m_querryRows.clear();
+    //    return defaultExec();
 }
 
 bool SQLiteTable::removeRow(const std::string &whereCondition)
 {
     // DELETE FROM tasks WHERE name='Test string'
 
-//    m_lastQuery = "DELETE FROM ";
-//    m_targetTableName = tableName;
+    //    m_lastQuery = "DELETE FROM ";
+    //    m_targetTableName = tableName;
 
-//    m_lastQuery += tableName + " " + criteriaStr;
+    //    m_lastQuery += tableName + " " + criteriaStr;
 
-//    m_querryRows.clear();
-//    return defaultExec();
+    //    m_querryRows.clear();
+    //    return defaultExec();
 }
 
 std::vector<DBRow> SQLiteTable::getRow(const std::string &whereCondition, const std::string &orderCondition) const
 {
     // SELECT id FROM tasks WHERE name='Test string'
 
-//    m_lastQuery = "SELECT ";
-//    m_targetTableName = tableName;
-//    m_queryColumns = columns;
+    //    m_lastQuery = "SELECT ";
+    //    m_targetTableName = tableName;
+    //    m_queryColumns = columns;
 
-//    m_lastQuery += columns[0];
-//    for (std::size_t i = 1; i < columns.size(); i++) {
-//        m_lastQuery += ", " + columns[i];
-//    }
-//    m_lastQuery += " FROM ";
-//    m_lastQuery += tableName;
+    //    m_lastQuery += columns[0];
+    //    for (std::size_t i = 1; i < columns.size(); i++) {
+    //        m_lastQuery += ", " + columns[i];
+    //    }
+    //    m_lastQuery += " FROM ";
+    //    m_lastQuery += tableName;
 
-//    if (!criteriaStr.empty()) {
-//        m_lastQuery += " WHERE " + criteriaStr;
-//    }
+    //    if (!criteriaStr.empty()) {
+    //        m_lastQuery += " WHERE " + criteriaStr;
+    //    }
 
-//    m_querryRows.clear();
-//    if (!defaultExec()) {
-//        return false;
-//    }
-//    m_currentValueIt = m_querryRows.begin();
+    //    m_querryRows.clear();
+    //    if (!defaultExec()) {
+    //        return false;
+    //    }
+    //    m_currentValueIt = m_querryRows.begin();
     //    return true;
 }
 
@@ -227,7 +337,7 @@ void SQLiteTable::initColumns()
     }
 
 
-//    // 2. Получаем информацию о внешних ключах
+    //    // 2. Получаем информацию о внешних ключах
     tableInfo = m_executor->exec("PRAGMA foreign_key_list(" + m_name + ")");
     if (!tableInfo.has_value()) {
         return;

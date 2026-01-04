@@ -39,6 +39,12 @@ public:
     std::string getLastError() const;
 
     bool create(const std::list<ColumnInfo>& columns);
+
+    /**
+     * @brief addColumn     Добавить столбец. При добавлении внешнего ключа пересоздаст таблицу (нюанс работы SQLite)
+     * @param columnConfig  Информация о столбце
+     * @return
+     */
     bool addColumn(const ColumnInfo& columnConfig);
     std::list<ColumnInfo> getColumns() const;
     bool removeColumn(const std::string& columnName);
