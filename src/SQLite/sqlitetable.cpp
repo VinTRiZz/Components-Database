@@ -52,7 +52,7 @@ bool SQLiteTable::create(const std::list<ColumnInfo> &columns)
                 col.name + " " +
                 columnTypeToText(col.type) + " " +
                 (col.isPrimaryKey ? "PRIMARY KEY AUTOINCREMENT " : "") +
-                (col.canBeNull ? "" : "NOT NULL") + " " +
+                (col.canBeNull ? "" : "NOT NULL ") +
                 (col.defaultValue.has_value() ? std::string("DEFAULT ") + cellDataToString(col.defaultValue.value()) : "") +
                 ","
         ;

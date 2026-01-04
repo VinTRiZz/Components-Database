@@ -37,8 +37,7 @@ SQLiteExecutor::SQLiteExecutor(SQLiteDatabase &db) :
 
 bool SQLiteExecutor::prepare(const std::string &queryStr)
 {
-    const char* sql = "SELECT * FROM users WHERE age > ?;";
-    int rc = sqlite3_prepare_v2(d->db, sql, -1, &d->preparedStmt, NULL);
+    int rc = sqlite3_prepare_v2(d->db, queryStr.c_str(), -1, &d->preparedStmt, NULL);
 
     // TODO: Write-up
 //    if (rc == SQLITE_OK) {
@@ -96,8 +95,8 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
         tmpRow.resize(colCount);
     }
     while (sqlite3_step(d->preparedStmt) == SQLITE_ROW) {
-        const char *label = (const char *)sqlite3_column_text(d->preparedStmt, 0);
-        sqlite3_column_int64(d->preparedStmt, 0);
+//        const char *label = (const char *)sqlite3_column_text(d->preparedStmt, 0);
+//        sqlite3_column_int64(d->preparedStmt, 0);
     }
 
     LOG_OK("EXECUTE SUCCEED");
