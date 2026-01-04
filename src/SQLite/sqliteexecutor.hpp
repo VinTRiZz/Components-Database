@@ -6,6 +6,8 @@ struct sqlite3;
 
 namespace Database {
 
+class SQLiteDatabase;
+
 class SQLiteExecutorError
 {
     std::string m_errorText;
@@ -17,7 +19,7 @@ public:
 class SQLiteExecutor
 {
 public:
-    SQLiteExecutor(sqlite3* db);
+    SQLiteExecutor(SQLiteDatabase& db);
 
     bool prepare(const std::string& queryStr);
     std::optional<std::vector<DBRow> > exec(const std::string& queryStr = {});

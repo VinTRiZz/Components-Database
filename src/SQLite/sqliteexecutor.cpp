@@ -4,6 +4,8 @@
 
 #include <sqlite3.h>
 
+#include "sqlitedatabase.h"
+
 static int callback(void *data, int argc, char **argv, char **azColName) {
 
     auto querryCallback = *reinterpret_cast< std::function<void (int argc, char **argv, char **azColName)>* >(data);
@@ -21,22 +23,22 @@ struct SQLiteExecutor::Impl
 
     std::string lastQuery;
     std::string queryPrepared;
+    sqlite3_stmt* preparedStmt {nullptr};
     std::string lastErrorText;
 
     std::list<std::shared_future<bool> > asyncQueries;
 };
 
-SQLiteExecutor::SQLiteExecutor(sqlite3* db) :
+SQLiteExecutor::SQLiteExecutor(SQLiteDatabase &db) :
     d {new Impl}
 {
-    d->db = db;
+    d->db = static_cast<sqlite3*>(db.getConnection());
 }
 
 bool SQLiteExecutor::prepare(const std::string &queryStr)
 {
-    sqlite3_stmt* stmt;
     const char* sql = "SELECT * FROM users WHERE age > ?;";
-    int rc = sqlite3_prepare_v2(d->db, sql, -1, &stmt, NULL);
+    int rc = sqlite3_prepare_v2(d->db, sql, -1, &d->preparedStmt, NULL);
 
     // TODO: Write-up
 //    if (rc == SQLITE_OK) {
@@ -62,7 +64,16 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
         return std::nullopt;
     }
 
-    LOG_EMPTY("EXECUTING QUERY:\n", queryStr.c_str(), "\n");
+    int colCount = 0;
+    if (!queryStr.empty()) {
+        if (!prepare(queryStr)) {
+            return std::nullopt;
+        }
+        colCount = sqlite3_column_count(d->preparedStmt);
+    }
+
+
+    LOG_EMPTY("EXECUTING QUERY:\"", queryStr, "\"");
 
     char *errorMessage {nullptr};
     if (d->queryPrepared.empty()) {
@@ -75,16 +86,27 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
     if (sqlite3_exec(d->db, queryStr.c_str(), NULL, NULL, &errorMessage) != SQLITE_OK) {
         d->lastErrorText = errorMessage;
         sqlite3_free(errorMessage);
-        LOG_ERROR("EXECUTE ERROR:", d->lastErrorText);
-        return {};
+        LOG_ERROR("EXECUTE ERROR: \"", d->lastErrorText, "\"");
+        return std::nullopt;
     }
+
+    std::vector<DBRow> res;
+    DBRow tmpRow;
+    if (colCount > 0) {
+        tmpRow.resize(colCount);
+    }
+    while (sqlite3_step(d->preparedStmt) == SQLITE_ROW) {
+        const char *label = (const char *)sqlite3_column_text(d->preparedStmt, 0);
+        sqlite3_column_int64(d->preparedStmt, 0);
+    }
+
     LOG_OK("EXECUTE SUCCEED");
-    return {};
+    return res;
 }
 
 bool SQLiteExecutor::execAsync(const std::string &queryStr, const std::function<void (std::vector<DBRow> &&)> &execCallback)
 {
-    LOG_EMPTY("EXECUTING QUERY:\n", queryStr.c_str(), "\n");
+    LOG_EMPTY("EXECUTING QUERY:\"", queryStr, "\"");
 
     char *errorMessage {nullptr};
     d->lastQuery = queryStr;
@@ -93,7 +115,7 @@ bool SQLiteExecutor::execAsync(const std::string &queryStr, const std::function<
     if (sqlite3_exec(d->db, queryStr.c_str(), callback, (void*)&execCallback, &errorMessage) != SQLITE_OK) {
         d->lastErrorText = errorMessage;
         sqlite3_free(errorMessage);
-        LOG_ERROR("EXECUTE ERROR", d->lastErrorText);
+        LOG_ERROR("EXECUTE ERROR: \"", d->lastErrorText, "\"");
         return false;
     }
     LOG_OK("EXECUTE SUCCEED");

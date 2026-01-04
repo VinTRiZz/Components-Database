@@ -26,5 +26,7 @@ using CellIntegerValue = std::optional<int64_t>;
 typedef std::variant<CellStringValue, CellIntegerValue> DBCell;
 typedef std::vector<DBCell> DBRow;
 
+std::string cellDataToString(const DBCell& cellData);
+
 }
 

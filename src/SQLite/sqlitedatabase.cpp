@@ -90,7 +90,7 @@ bool SQLiteDatabase::save()
 
 bool SQLiteDatabase::beginTransaction()
 {
-    auto executor = SQLiteExecutor(d->dbConnection);
+    auto executor = SQLiteExecutor(*this);
     auto res = executor.exec("BEGIN TRANSACTION");
     if (!res) {
         d->lastErrorMessage = executor.getError();
@@ -100,7 +100,7 @@ bool SQLiteDatabase::beginTransaction()
 
 bool SQLiteDatabase::commitTransaction()
 {
-    auto executor = SQLiteExecutor(d->dbConnection);
+    auto executor = SQLiteExecutor(*this);
     auto res = executor.exec("COMMIT");
     if (!res) {
         d->lastErrorMessage = executor.getError();
@@ -110,7 +110,7 @@ bool SQLiteDatabase::commitTransaction()
 
 bool SQLiteDatabase::rollbackTransaction()
 {
-    auto executor = SQLiteExecutor(d->dbConnection);
+    auto executor = SQLiteExecutor(*this);
     auto res = executor.exec("ROLLBACK");
     if (!res) {
         d->lastErrorMessage = executor.getError();
@@ -121,6 +121,11 @@ bool SQLiteDatabase::rollbackTransaction()
 std::string SQLiteDatabase::lastError() const
 {
     return d->lastErrorMessage;
+}
+
+void *SQLiteDatabase::getConnection() const
+{
+    return d->dbConnection;
 }
 
 }

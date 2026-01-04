@@ -15,14 +15,29 @@ public:
     struct ColumnInfo
     {
         std::string name;
-        std::string type;
-        std::string ref;
-        std::string rules;
+
+        enum ColumnType : int {
+            CT_UNDEFINED = -1,
+            CT_INTEGER,
+            CT_TEXT,
+        };
+        ColumnType type;
+
+        bool isPrimaryKey {false};
+        std::optional<DBCell> defaultValue;
+        bool canBeNull {true};
+
+        std::string referedColumn;
+        std::string referenceDeleteAction {"CASCADE"};
     };
-    using SQLiteExecutor::SQLiteExecutor;
+
+    SQLiteTable(const std::string& tableName, SQLiteDatabase& db);
+
+    std::string getName() const;
 
     bool create(const std::list<ColumnInfo>& columns);
     bool addColumn(const ColumnInfo& columnConfig);
+    std::list<ColumnInfo> getColumns() const;
     bool removeColumn(const std::string& columnName);
     bool drop();
 
@@ -33,7 +48,11 @@ public:
     std::vector<DBRow> getRow(const std::string& whereCondition = {}, const std::string& orderCondition = {}) const;
 
 private:
+    std::string m_name;
     std::list<ColumnInfo> m_columns;
+
+    std::string columnTypeToText(ColumnInfo::ColumnType ct) const;
+    ColumnInfo::ColumnType columnTypeFromText(const std::string& ct) const;
 };
 
 }

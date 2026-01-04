@@ -32,6 +32,9 @@ public:
 private:
     struct Impl;
     std::shared_ptr<Impl> d;
+
+    friend class SQLiteExecutor;
+    void* getConnection() const;
 };
 
 }
