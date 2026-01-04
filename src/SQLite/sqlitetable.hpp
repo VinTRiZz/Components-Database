@@ -54,7 +54,7 @@ public:
     bool addRow(std::map<std::string, DBCell>&& rowNamedData);
     bool updateRow(std::map<std::string, DBCell>&& rowNamedData, const std::string& whereCondition = {});
     bool removeRow(const std::string& whereCondition = {});
-    std::vector<DBRow> getRow(const std::string& whereCondition = {}, const std::string& orderCondition = {}) const;
+    std::vector<DBRow> getRow(const std::vector<std::string> &cols = {}, const std::string& whereCondition = {}, const std::string& orderCondition = {}) const;
 
 private:
     std::shared_ptr<SQLiteExecutor> m_executor;

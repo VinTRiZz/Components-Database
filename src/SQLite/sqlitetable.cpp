@@ -179,25 +179,35 @@ bool SQLiteTable::removeColumn(const std::string &columnName)
         colsQuery += col.name + ",";
     }
     colsQuery.pop_back();
+    auto colsCopy = m_columns;
 
+    m_columns.erase(std::find_if(m_columns.begin(), m_columns.end(), [columnName](auto& colInfo){
+        return (colInfo.name == columnName);
+    }));
     auto currentOperationRes = m_executor->exec(std::string("CREATE TABLE new_") + m_name + " AS SELECT " + colsQuery + " FROM " + m_name).has_value();
     if (!currentOperationRes) {
+        m_columns = colsCopy;
         return false;
     }
 
     currentOperationRes = m_executor->exec(std::string("INSERT INTO new_") + m_name + " SELECT " + colsQuery + " FROM " + m_name).has_value();
     if (!currentOperationRes) {
+        m_columns = colsCopy;
         return false;
     }
 
     auto selfName = m_name;
     currentOperationRes = drop();
     if (!currentOperationRes) {
+        m_name = selfName;
+        m_columns = colsCopy;
         return false;
     }
 
     currentOperationRes = m_executor->exec("ALTER TABLE new_" + selfName + " RENAME TO " + selfName).has_value();
     if (!currentOperationRes) {
+        m_name = selfName;
+        m_columns = colsCopy;
         return false;
     }
 
@@ -238,83 +248,60 @@ bool SQLiteTable::addRow(DBRow &&rowData)
 
 bool SQLiteTable::addRow(std::map<std::string, DBCell> &&rowNamedData)
 {
-    // INSERT INTO tasks VALUES (1, 'test string')
+    std::string colsQuery;
+    std::string valuesQuery;
+    for (auto& [colName, colValue] : rowNamedData) {
+        colsQuery += colName + ",";
+        valuesQuery += cellDataToString(colValue) + ",";
+    }
+    colsQuery.pop_back();
+    valuesQuery.pop_back();
 
-    //    m_lastQuery = "INSERT INTO ";
-    //    m_targetTableName = tableName;
-
-    //    m_lastQuery += tableName + " VALUES (" + getCellValueString(values[0]);
-    //    for (std::size_t i = 1; i < values.size(); i++) {
-
-    //        m_lastQuery += ", " + getCellValueString(values[i]);
-    //    }
-    //    m_lastQuery += ")";
-
-    //    m_querryRows.clear();
-    //    if (!defaultExec()) {
-    //        return false;
-    //    }
-    //    m_currentValueIt = m_querryRows.begin();
-    //    return true;
+    return m_executor->exec(std::string("INSERT INTO ") + m_name + " (" + colsQuery + ") VALUES (" + valuesQuery + ")").has_value();
 }
 
 bool SQLiteTable::updateRow(std::map<std::string, DBCell> &&rowNamedData, const std::string &whereCondition)
 {
     // UPDATE tasks SET name='Test update' WHERE id=1
 
-    //    m_lastQuery = "UPDATE ";
-    //    m_targetTableName = tableName;
-    //    m_queryColumns = columns;
+    std::string query = "UPDATE " + m_name + " SET ";
 
-    //    m_lastQuery += tableName + " SET (" + columns[0] + "=" + getCellValueString(values[0]);
-    //    int pos = 0;
-    //    for (auto& colStr : columns) {
-    //        m_lastQuery += ", " + colStr + "=" + getCellValueString(values[pos++]);
-    //    }
-    //    m_lastQuery += ") " + criteriaStr;
+    std::string dataQuery;
+    for (auto& [colName, colValue] : rowNamedData) {
+        query += colName + "=" + cellDataToString(colValue) + ",";
+    }
+    query.pop_back();
+    query += (whereCondition.empty() ? "" : std::string(" WHERE ") + whereCondition);
 
-    //    m_querryRows.clear();
-    //    return defaultExec();
+    return m_executor->exec(query).has_value();
 }
 
 bool SQLiteTable::removeRow(const std::string &whereCondition)
 {
     // DELETE FROM tasks WHERE name='Test string'
 
-    //    m_lastQuery = "DELETE FROM ";
-    //    m_targetTableName = tableName;
-
-    //    m_lastQuery += tableName + " " + criteriaStr;
-
-    //    m_querryRows.clear();
-    //    return defaultExec();
+    std::string query = "DELETE FROM " + m_name + (whereCondition.empty() ? "" : std::string(" WHERE ") + whereCondition);
+    return m_executor->exec(query).has_value();
 }
 
-std::vector<DBRow> SQLiteTable::getRow(const std::string &whereCondition, const std::string &orderCondition) const
+std::vector<DBRow> SQLiteTable::getRow(const std::vector<std::string>& cols, const std::string &whereCondition, const std::string &orderCondition) const
 {
     // SELECT id FROM tasks WHERE name='Test string'
 
-    //    m_lastQuery = "SELECT ";
-    //    m_targetTableName = tableName;
-    //    m_queryColumns = columns;
-
-    //    m_lastQuery += columns[0];
-    //    for (std::size_t i = 1; i < columns.size(); i++) {
-    //        m_lastQuery += ", " + columns[i];
-    //    }
-    //    m_lastQuery += " FROM ";
-    //    m_lastQuery += tableName;
-
-    //    if (!criteriaStr.empty()) {
-    //        m_lastQuery += " WHERE " + criteriaStr;
-    //    }
-
-    //    m_querryRows.clear();
-    //    if (!defaultExec()) {
-    //        return false;
-    //    }
-    //    m_currentValueIt = m_querryRows.begin();
-    //    return true;
+    std::string query;
+    if (cols.empty()) {
+        query = std::string("SELECT * FROM ") + m_name;
+    } else {
+        query = "SELECT ";
+        for (auto& col : cols) {
+            query += col + ",";
+        }
+        query.pop_back();
+        query += " FROM " + m_name;
+    }
+    return m_executor->exec(query +
+                            (whereCondition.empty() ? "" : std::string("WHERE ") + whereCondition) +
+                            (orderCondition.empty() ? "" : std::string("ORDER BY ") + orderCondition)).value();
 }
 
 void SQLiteTable::initColumns()
