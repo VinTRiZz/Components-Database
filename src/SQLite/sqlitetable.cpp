@@ -67,13 +67,14 @@ bool SQLiteTable::create(const std::list<ColumnInfo> &columns)
             foreignKeys +=
                     " FOREIGN KEY (" + col.name +
                     ") REFERENCES " + col.referedColumn +
-                    " ON DELETE " + col.referenceDeleteAction +
+                    (col.referenceDeleteAction.empty() ? "" : std::string(" ON DELETE ") + col.referenceDeleteAction) +
+                    (col.referenceUpdateAction.empty() ? "" : std::string(" ON UPDATE ") + col.referenceUpdateAction) +
                     ",";
         }
     }
     query.pop_back();
     if (!foreignKeys.empty()) {
-        query += foreignKeys;
+        query += ", " + foreignKeys;
         query.pop_back();
     }
     query += ")";
@@ -216,123 +217,29 @@ void SQLiteTable::initColumns()
     m_columns.clear();
     for (auto& row : tableInfo.value()) {
         ColumnInfo col;
-
         int currentColNo = 1;
-        col.name = cellDataToString(row[currentColNo++]);
+        col.name = std::get<DBCellString>(row[currentColNo++]).value();
         col.type = columnTypeFromText(std::get<DBCellString>(row[currentColNo++]).value());
         col.canBeNull = (std::get<DBCellInteger>(row[currentColNo++]).value() == 0);
         col.defaultValue = row[currentColNo++];
         col.isPrimaryKey = (std::get<DBCellInteger>(row[currentColNo++]).value() != 0);
-
-        LOG_DEBUG("Col:",
-                  col.name,
-                  columnTypeToText(col.type),
-                  col.canBeNull,
-                  cellDataIsNull(col.defaultValue) ? "NULL" : cellDataToString(col.defaultValue),
-                  col.isPrimaryKey);
         m_columns.push_back(col);
     }
 
 
 //    // 2. Получаем информацию о внешних ключах
-//    sql = "PRAGMA foreign_key_list(\"" + tableName + "\");";
-//    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) == SQLITE_OK) {
-//        // id (0), seq (1), table (2), from (3), to (4), on_update (5), on_delete (6)
-//        while (sqlite3_step(stmt) == SQLITE_ROW) {
-//            const char* from_col = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-//            const char* to_col = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
-//            const char* on_delete = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
-
-//            if (from_col && to_col) {
-//                // Ищем столбец с именем from_col
-//                for (auto& col : columns) {
-//                    if (col.name == from_col) {
-//                        col.referedColumn = to_col;
-//                        if (on_delete) {
-//                            col.referenceDeleteAction = on_delete;
-//                        }
-//                        break;
-//                    }
-//                }
-//            }
-//        }
-//        sqlite3_finalize(stmt);
-//    }
-
-//    // 3. Получаем дополнительную информацию о PRIMARY KEY из pragma index_list/index_info
-//    // (для AUTOINCREMENT и более точного определения PK)
-//    sql = "PRAGMA index_list(\"" + tableName + "\");";
-//    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) == SQLITE_OK) {
-//        while (sqlite3_step(stmt) == SQLITE_ROW) {
-//            // name (0), unique (1), origin (2), partial (3)
-//            const char* origin = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-//            if (origin && strcmp(origin, "pk") == 0) {
-//                const char* index_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-
-//                // Получаем столбцы, входящие в этот PK индекс
-//                std::string index_sql = "PRAGMA index_info(\"" + std::string(index_name) + "\");";
-//                sqlite3_stmt* idx_stmt;
-
-//                if (sqlite3_prepare_v2(db, index_sql.c_str(), -1, &idx_stmt, nullptr) == SQLITE_OK) {
-//                    while (sqlite3_step(idx_stmt) == SQLITE_ROW) {
-//                        // seqno (0), cid (1), name (2)
-//                        const char* col_name = reinterpret_cast<const char*>(sqlite3_column_text(idx_stmt, 2));
-
-//                        // Отмечаем найденный столбец как PK
-//                        for (auto& col : columns) {
-//                            if (col.name == col_name) {
-//                                col.isPrimaryKey = true;
-//                                break;
-//                            }
-//                        }
-//                    }
-//                    sqlite3_finalize(idx_stmt);
-//                }
-//            }
-//        }
-//        sqlite3_finalize(stmt);
-//    }
-}
-
-// TODO: Разобраться, писал дипсик. 100% что-то не работает
-std::optional<DBCell> SQLiteTable::parseDefaultValue(const char *sqlite_default, ColumnType col_type) {
-    std::string default_str(sqlite_default);
-    if (!sqlite_default || default_str.size() == 0) {
-        return std::nullopt;
+    tableInfo = m_executor->exec("PRAGMA foreign_key_list(" + m_name + ")");
+    if (!tableInfo.has_value()) {
+        return;
     }
-
-    // Убираем кавычки для строковых значений
-    if (default_str.front() == '\'' && default_str.back() == '\'') {
-        default_str = default_str.substr(1, default_str.length() - 2);
-        // Экранированные кавычки внутри строки
-        size_t pos = 0;
-        while ((pos = default_str.find("''", pos)) != std::string::npos) {
-            default_str.replace(pos, 2, "'");
-            pos += 1;
-        }
-        return DBCellString{default_str};
+    for (auto& row : tableInfo.value()) {
+        auto colFrom = std::find_if(m_columns.begin(), m_columns.end(), [targetName = std::get<DBCellString>(row[3]).value()](auto& colInfo){
+            return (colInfo.name == targetName);
+        });
+        colFrom->referedColumn = std::get<DBCellString>(row[2]).value();
+        colFrom->referenceUpdateAction = std::get<DBCellString>(row[5]).value();
+        colFrom->referenceDeleteAction = std::get<DBCellString>(row[6]).value();
     }
-
-    // Числовые значения и специальные ключевые слова
-    if (col_type == ColumnType::CT_INTEGER || col_type == ColumnType::CT_DOUBLE) {
-        // Попытка преобразовать в число
-        try {
-            if (default_str.find('.') != std::string::npos) {
-                double val = std::stod(default_str);
-                // Если нужен REAL в DBCell, преобразуем в строку
-                return DBCellString{std::to_string(val)};
-            } else {
-                int64_t val = std::stoll(default_str);
-                return DBCellInteger{val};
-            }
-        } catch (...) {
-            // Если не число, возвращаем как строку
-            return DBCellString{default_str};
-        }
-    }
-
-    // Для остальных типов или если парсинг не удался
-    return DBCellString{default_str};
 }
 
 }

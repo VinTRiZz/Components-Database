@@ -23,6 +23,7 @@ public:
         bool canBeNull {true};
 
         std::string referedColumn;
+        std::string referenceUpdateAction {"NO ACTION"};
         std::string referenceDeleteAction {"CASCADE"};
     };
 
@@ -56,7 +57,6 @@ private:
     std::list<ColumnInfo> m_columns;
 
     void initColumns();
-    std::optional<DBCell> parseDefaultValue(const char* sqlite_default, ColumnType col_type);
 };
 
 }
