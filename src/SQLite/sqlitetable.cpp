@@ -133,7 +133,7 @@ bool SQLiteTable::addColumn(const ColumnInfo &columnConfig)
         return false;
     }
 
-    currentOperationRes = m_executor->exec(std::string("INSERT INTO ") + tempTableName + " SELECT " + colsQuery + ", NULL FROM " + m_name).has_value();
+    currentOperationRes = m_executor->exec(std::string("INSERT INTO ") + tempTableName + " SELECT " + colsQuery + ", NULL FROM " + selfName).has_value();
     if (!currentOperationRes) {
         return false;
     }
@@ -217,22 +217,23 @@ bool SQLiteTable::drop()
 
 bool SQLiteTable::addRow(DBRow &&rowData)
 {
-    //    m_lastQuery = "INSERT INTO ";
-    //    m_targetTableName = tableName;
+    std::string query = "INSERT INTO ";
 
-    //    m_lastQuery += tableName + " VALUES (" + getCellValueString(values[0]);
-    //    for (std::size_t i = 1; i < values.size(); i++) {
+    std::string colsQuery;
+    for (auto& col : m_columns) {
+        colsQuery += col.name + ",";
+    }
+    colsQuery.pop_back();
 
-    //        m_lastQuery += ", " + getCellValueString(values[i]);
-    //    }
-    //    m_lastQuery += ")";
+    query += m_name + " (" + colsQuery + ") VALUES (";
 
-    //    m_querryRows.clear();
-    //    if (!defaultExec()) {
-    //        return false;
-    //    }
-    //    m_currentValueIt = m_querryRows.begin();
-    //    return true;
+    for (auto& v : rowData) {
+        query += cellDataToString(v) + ",";
+    }
+    query.pop_back();
+    query += ")";
+
+    return m_executor->exec(query).has_value();
 }
 
 bool SQLiteTable::addRow(std::map<std::string, DBCell> &&rowNamedData)
