@@ -4,6 +4,10 @@
 
 #include <sqlite3.h>
 
+#include <set>
+#include <fstream>
+#include <filesystem>
+
 #include "sqliteexecutor.hpp"
 
 namespace Database
@@ -11,10 +15,12 @@ namespace Database
 
 struct SQLiteDatabase::Impl
 {
-    sqlite3* dbConnection {nullptr};
-
     std::string dbPath;
     std::string lastErrorMessage;
+
+    std::set<SQLiteExecutor*>       executors;
+    std::unique_lock<std::mutex>    writerMx;
+    bool                            isAnyReading {false};
 };
 
 SQLiteDatabase::SQLiteDatabase() :
@@ -25,8 +31,8 @@ SQLiteDatabase::SQLiteDatabase() :
 
 SQLiteDatabase::~SQLiteDatabase()
 {
-    if (isOpen()) {
-        close();
+    for (auto * pCon : d->executors) {
+        removeConnection(pCon);
     }
 }
 
@@ -36,96 +42,83 @@ void SQLiteDatabase::setThreadsafe()
     sqlite3_initialize();
 }
 
-void SQLiteDatabase::setDatabase(const std::string &filePath)
+bool SQLiteDatabase::setDatabase(const std::string &filePath)
 {
-    d->dbPath = filePath;
-}
-
-bool SQLiteDatabase::open(const std::string &filePath)
-{
-    if (!filePath.empty()) {
+    // Corner-case для SQLite
+    if (filePath == ":memory:") {
         d->dbPath = filePath;
+        return true;
     }
 
-    if (d->dbPath.empty()) {
-        d->lastErrorMessage = "Empty database file path";
+    if (!std::filesystem::exists(std::filesystem::path(filePath).parent_path())) {
+        d->lastErrorMessage = "Invalid path (file either it's directory not exists)";
         return false;
     }
 
-    if (sqlite3_open(d->dbPath.c_str(), &d->dbConnection)) {
-        d->lastErrorMessage = sqlite3_errmsg(d->dbConnection);
-        return false;
+    if (!std::filesystem::exists(filePath)) {
+        std::ofstream oCreateFile(filePath);
+        oCreateFile.close();
     }
 
+    std::fstream oFile(filePath, std::ios_base::in | std::ios_base::out);
+    if (!oFile.is_open()) {
+        d->lastErrorMessage = "Invalid path (failed to create or open file)";
+        return false;
+    }
+    oFile.close();
+
+    d->dbPath = filePath;
     return true;
 }
 
-bool SQLiteDatabase::isOpen() const
+bool SQLiteDatabase::isValid() const
 {
-    if (d->dbConnection == NULL) {
+    sqlite3* pCon {nullptr};
+    if (sqlite3_open(d->dbPath.c_str(), &pCon) != SQLITE_OK) {
+        d->lastErrorMessage = sqlite3_errmsg(pCon);
+        sqlite3_close(pCon);
         return false;
     }
-
-    int highwater = 0;
-    int current = 0;
-    int rc = sqlite3_db_status(d->dbConnection, SQLITE_DBSTATUS_LOOKASIDE_USED, &current, &highwater, 0);
-
-    return (rc == SQLITE_OK) ? 1 : 0;
+    sqlite3_close(pCon);
+    return true;
 }
 
-void SQLiteDatabase::close()
-{
-    sqlite3_close(d->dbConnection);
-}
-
-bool SQLiteDatabase::save()
-{
-    if (!isOpen()) {
-        d->lastErrorMessage = "Database is not open";
-        return false;
-    }
-    close();
-    return open(d->dbPath);
-}
-
-bool SQLiteDatabase::beginTransaction()
-{
-    auto executor = SQLiteExecutor(*this);
-    auto res = executor.exec("BEGIN TRANSACTION");
-    if (!res) {
-        d->lastErrorMessage = executor.getError();
-    }
-    return res.has_value();
-}
-
-bool SQLiteDatabase::commitTransaction()
-{
-    auto executor = SQLiteExecutor(*this);
-    auto res = executor.exec("COMMIT");
-    if (!res) {
-        d->lastErrorMessage = executor.getError();
-    }
-    return res.has_value();
-}
-
-bool SQLiteDatabase::rollbackTransaction()
-{
-    auto executor = SQLiteExecutor(*this);
-    auto res = executor.exec("ROLLBACK");
-    if (!res) {
-        d->lastErrorMessage = executor.getError();
-    }
-    return res.has_value();
-}
-
-std::string SQLiteDatabase::lastError() const
+std::string SQLiteDatabase::getLastError() const
 {
     return d->lastErrorMessage;
 }
 
-void *SQLiteDatabase::getConnection() const
+void *SQLiteDatabase::createConnection(SQLiteExecutor* requestingExecutor)
 {
-    return d->dbConnection;
+    sqlite3* pCon {nullptr};
+    if (sqlite3_open(d->dbPath.c_str(), &pCon) != SQLITE_OK) {
+        sqlite3_close(pCon);
+        d->lastErrorMessage = sqlite3_errmsg(pCon);
+        LOG_ERROR("Connection", reinterpret_cast<uint64_t>(requestingExecutor) % 100'000, "failed to open");
+        return nullptr;
+    }
+
+    d->executors.insert(requestingExecutor);
+    LOG_OK("Connection", reinterpret_cast<uint64_t>(requestingExecutor) % 100'000, "created");
+    return pCon;
+}
+
+void SQLiteDatabase::startReadMode(void *connectionHandler)
+{
+    if (d->writerMx.owns_lock()) {
+
+    }
+}
+
+void SQLiteDatabase::startWriteMode(void* connectionHandler)
+{
+
+}
+
+void SQLiteDatabase::removeConnection(SQLiteExecutor *requestingExecutor)
+{
+    d->executors.erase(requestingExecutor);
+    LOG_OK("Connection", reinterpret_cast<uint64_t>(requestingExecutor) % 100'000, "removed");
 }
 
 }

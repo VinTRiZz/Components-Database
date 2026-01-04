@@ -20,6 +20,13 @@ class SQLiteExecutor
 {
 public:
     SQLiteExecutor(SQLiteDatabase& db);
+    ~SQLiteExecutor();
+
+    bool isOpen() const;
+
+    bool beginTransaction();
+    bool commitTransaction();
+    bool rollbackTransaction();
 
     bool prepare(const std::string& queryStr) const;
     bool bind(int parameterNumber, const DBCell& value);
@@ -27,7 +34,7 @@ public:
     bool execAsync(const std::string& queryStr, const std::function<void(std::vector<DBRow>&&)>& execCallback);
 
     std::string getLastQuery() const;
-    std::string getError() const;
+    std::string getLastError() const;
 
 private:
     struct Impl;

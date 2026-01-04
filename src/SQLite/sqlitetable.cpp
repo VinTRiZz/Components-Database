@@ -1,10 +1,11 @@
 #include "sqlitetable.hpp"
 
+#include "sqliteexecutor.hpp"
 
 namespace Database {
 
 SQLiteTable::SQLiteTable(const std::string &tableName, SQLiteDatabase &db) :
-    SQLiteExecutor(db),
+    m_executor{std::make_shared<SQLiteExecutor>(db)},
     m_name{tableName}
 {
     //    if (!m_db.exec(
@@ -37,6 +38,21 @@ SQLiteTable::SQLiteTable(const std::string &tableName, SQLiteDatabase &db) :
     //    }
 }
 
+bool SQLiteTable::beginTransaction()
+{
+    return m_executor->beginTransaction();
+}
+
+bool SQLiteTable::commitTransaction()
+{
+    return m_executor->commitTransaction();
+}
+
+bool SQLiteTable::rollbackTransaction()
+{
+    return m_executor->rollbackTransaction();
+}
+
 std::string SQLiteTable::getName() const
 {
     return m_name;
@@ -44,8 +60,13 @@ std::string SQLiteTable::getName() const
 
 bool SQLiteTable::isTableExist() const
 {
-    auto res = exec(std::string("PRAGMA table_info(") + m_name + ")");
+    auto res = m_executor->exec(std::string("PRAGMA table_info(") + m_name + ")");
     return (res.has_value() && (res.value().size() > 0));
+}
+
+std::string SQLiteTable::getLastError() const
+{
+    return m_executor->getLastError();
 }
 
 bool SQLiteTable::create(const std::list<ColumnInfo> &columns)
@@ -76,10 +97,11 @@ bool SQLiteTable::create(const std::list<ColumnInfo> &columns)
         query.pop_back();
     }
     query += ")";
-
-    m_columns = columns;
-
-    return exec(query).has_value();
+    if (m_executor->exec(query).has_value()) {
+        m_columns = columns;
+        return true;
+    }
+    return false;
 }
 
 bool SQLiteTable::addColumn(const ColumnInfo &columnConfig)
@@ -99,7 +121,7 @@ bool SQLiteTable::removeColumn(const std::string &columnName)
 
 bool SQLiteTable::drop()
 {
-    return exec(std::string("DROP TABLE ") + m_name).has_value();
+    return m_executor->exec(std::string("DROP TABLE ") + m_name).has_value();
 }
 
 bool SQLiteTable::addRow(DBRow &&rowData)

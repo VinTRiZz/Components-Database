@@ -2,14 +2,15 @@
 
 #include "databasecommon.hpp"
 
-#include "sqliteexecutor.hpp"
-
 #include <list>
 #include <map>
 
 namespace Database {
 
-class SQLiteTable : public SQLiteExecutor
+class SQLiteDatabase;
+class SQLiteExecutor;
+
+class SQLiteTable
 {
 public:
     struct ColumnInfo
@@ -27,8 +28,13 @@ public:
 
     SQLiteTable(const std::string& tableName, SQLiteDatabase& db);
 
+    bool beginTransaction();
+    bool commitTransaction();
+    bool rollbackTransaction();
+
     std::string getName() const;
     bool isTableExist() const;
+    std::string getLastError() const;
 
     bool create(const std::list<ColumnInfo>& columns);
     bool addColumn(const ColumnInfo& columnConfig);
@@ -43,6 +49,8 @@ public:
     std::vector<DBRow> getRow(const std::string& whereCondition = {}, const std::string& orderCondition = {}) const;
 
 private:
+    std::shared_ptr<SQLiteExecutor> m_executor;
+
     std::string m_name;
     std::list<ColumnInfo> m_columns;
 };

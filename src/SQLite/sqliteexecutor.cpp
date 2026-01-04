@@ -35,12 +35,59 @@ struct SQLiteExecutor::Impl
 SQLiteExecutor::SQLiteExecutor(SQLiteDatabase &db) :
     d {new Impl}
 {
-    d->dbConnection = static_cast<sqlite3*>(db.getConnection());
+    d->dbConnection = static_cast<sqlite3*>(db.createConnection(this));
+}
+
+SQLiteExecutor::~SQLiteExecutor()
+{
+    if (isOpen()) {
+        sqlite3_close(d->dbConnection);
+    }
+}
+
+bool SQLiteExecutor::isOpen() const
+{
+    if (d->dbConnection == NULL) {
+        return false;
+    }
+
+    int highwater = 0;
+    int current = 0;
+    int rc = sqlite3_db_status(d->dbConnection, SQLITE_DBSTATUS_LOOKASIDE_USED, &current, &highwater, 0);
+
+    return (rc == SQLITE_OK) ? 1 : 0;
+}
+
+bool SQLiteExecutor::beginTransaction()
+{
+    auto res = exec("BEGIN TRANSACTION");
+    if (!res) {
+        d->lastErrorText = getLastError();
+    }
+    return res.has_value();
+}
+
+bool SQLiteExecutor::commitTransaction()
+{
+    auto res = exec("COMMIT");
+    if (!res) {
+        d->lastErrorText = getLastError();
+    }
+    return res.has_value();
+}
+
+bool SQLiteExecutor::rollbackTransaction()
+{
+    auto res = exec("ROLLBACK");
+    if (!res) {
+        d->lastErrorText = getLastError();
+    }
+    return res.has_value();
 }
 
 bool SQLiteExecutor::prepare(const std::string &queryStr) const
 {
-    auto bindRes = sqlite3_prepare_v2(d->dbConnection, queryStr.c_str(), -1, &d->preparedStmt, NULL);
+    auto bindRes = sqlite3_prepare(d->dbConnection, queryStr.c_str(), -1, &d->preparedStmt, NULL);
     if (bindRes == SQLITE_OK) {
         d->queryPrepared = queryStr;
     } else {
@@ -70,7 +117,7 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
         d->lastErrorText = "Empty query";
         return std::nullopt;
     }
-    if (d->queryPrepared.empty()) {
+    if (!queryStr.empty()) {
         if (!prepare(queryStr)) {
             return std::nullopt;
         }
@@ -96,12 +143,8 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
     // Harvest rows
     std::vector<DBRow> res;
     DBRow tmpRow(colCount);
-    if (colCount == 0) {
-        return res;
-    }
-
-    int callRes {SQLITE_DONE};
-    while ((callRes = sqlite3_step(d->preparedStmt)) == SQLITE_ROW) {
+    int callRes = sqlite3_step(d->preparedStmt);
+    while (callRes == SQLITE_ROW) {
         for (int i = 0; i < colCount; i++) {
             int columnType = sqlite3_column_type(d->preparedStmt, i);
 
@@ -145,13 +188,14 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
             }
         }
 
-        res.push_back(std::move(tmpRow));
+        res.push_back(tmpRow);
+        callRes = sqlite3_step(d->preparedStmt);
     }
 
     // Check if error exist
     if (callRes != SQLITE_DONE) {
         d->lastErrorText = sqlite3_errmsg(d->dbConnection);
-        LOG_ERROR("EXECUTE FAILED:", d->lastErrorText);
+        LOG_ERROR("EXECUTE FAILED:", d->lastErrorText, "Err code:", callRes);
         return std::nullopt;
     }
     LOG_OK("EXECUTE SUCCEED");
@@ -181,7 +225,7 @@ std::string SQLiteExecutor::getLastQuery() const
     return d->lastQuery;
 }
 
-std::string SQLiteExecutor::getError() const
+std::string SQLiteExecutor::getLastError() const
 {
     return d->lastErrorText;
 }

@@ -6,7 +6,7 @@
 namespace Database
 {
 
-class SQLiteQuery;
+class SQLiteExecutor;
 class SQLiteDatabase
 {
 public:
@@ -15,26 +15,20 @@ public:
 
     static void setThreadsafe();
 
-    void setDatabase(const std::string& filePath);
-
-    bool open(const std::string& filePath = {});
-    bool isOpen() const;
-    void close();
-
-    bool save();
-
-    bool beginTransaction();
-    bool commitTransaction();
-    bool rollbackTransaction();
-
-    std::string lastError() const;
+    // Для создания БД в RAM, укажите путь :memory:
+    bool setDatabase(const std::string& filePath);
+    bool isValid() const;
+    std::string getLastError() const;
 
 private:
     struct Impl;
     std::shared_ptr<Impl> d;
 
     friend class SQLiteExecutor;
-    void* getConnection() const;
+    void* createConnection(SQLiteExecutor* requestingExecutor);
+    void  startReadMode(void* connectionHandler);
+    void  startWriteMode(void* connectionHandler);
+    void  removeConnection(SQLiteExecutor* requestingExecutor);
 };
 
 }
