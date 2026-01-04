@@ -128,7 +128,7 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
         d->preparedStmt = nullptr;
     } BOOST_SCOPE_EXIT_END;
 
-    LOG_EMPTY("EXECUTING QUERY:\"", queryStr, "\"");
+    LOG_INFO("EXECUTING QUERY:\"", queryStr, "\"");
 
     // Determine column types
     std::map<int, ColumnType> columnTypes;
@@ -145,28 +145,11 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
     DBRow tmpRow(colCount);
     int callRes = sqlite3_step(d->preparedStmt);
     while (callRes == SQLITE_ROW) {
-        for (int i = 0; i < colCount; i++) {
+        for (int i = 0; i < colCount; ++i) {
             int columnType = sqlite3_column_type(d->preparedStmt, i);
 
-            if (columnType == SQLITE_NULL) {
-                if (columnTypes[i] == SQLITE_INTEGER) {
-                    tmpRow.emplace_back(DBCellInteger{std::nullopt});
-                } else {
-                    tmpRow.emplace_back(DBCellString{std::nullopt});
-                }
-            }
-            else if (columnType == SQLITE_INTEGER) {
-                tmpRow.emplace_back(DBCellInteger{sqlite3_column_int64(d->preparedStmt, i)});
-            }
-            else if (columnType == SQLITE_FLOAT) {
-                double value = sqlite3_column_double(d->preparedStmt, i);
-                tmpRow.emplace_back(DBCellString{std::to_string(value)});
-            }
-            else if (columnType == SQLITE_TEXT) {
-                const unsigned char* text = sqlite3_column_text(d->preparedStmt, i);
-                tmpRow.emplace_back(DBCellString{std::string(reinterpret_cast<const char*>(text))});
-            }
-            else if (columnType == SQLITE_BLOB) {
+            // Corner-case
+            if (columnType == SQLITE_BLOB) {
                 const void* blob = sqlite3_column_blob(d->preparedStmt, i);
                 int blobSize = sqlite3_column_bytes(d->preparedStmt, i);
                 if (blob && blobSize > 0) {
@@ -177,18 +160,41 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
                         sprintf(hex, "%02x", bytes[j]);
                         hexStr += hex;
                     }
-                    tmpRow.emplace_back(DBCellString{hexStr});
+                    tmpRow[i] = (DBCellString{hexStr});
                 } else {
-                    tmpRow.emplace_back(DBCellString{std::nullopt});
+                    tmpRow[i] = (DBCellString{std::nullopt});
                 }
+                continue;
             }
-            else {
-                const unsigned char* text = sqlite3_column_text(d->preparedStmt, i);
-                tmpRow.emplace_back(DBCellString{text ? std::string(reinterpret_cast<const char*>(text)) : ""});
+
+            switch (columnType)
+            {
+            case SQLITE_NULL:
+                tmpRow[i] = createNullValue(columnTypes[i]);
+                break;
+
+            case SQLITE_INTEGER:
+                tmpRow[i] = (DBCellInteger{sqlite3_column_int64(d->preparedStmt, i)});
+                break;
+
+            case SQLITE_FLOAT:
+                tmpRow[i] = (DBCellDouble{sqlite3_column_double(d->preparedStmt, i)});
+                break;
+
+            default: // for SQLITE_TEXT also
+                auto colText = sqlite3_column_text(d->preparedStmt, i);
+                if (colText == NULL) {
+                    tmpRow[i] = (DBCellString{});
+                } else {
+                    tmpRow[i] = (DBCellString{reinterpret_cast<const char*>(colText)});
+                }
             }
         }
 
         res.push_back(tmpRow);
+        for (auto& v : tmpRow) {
+            v = {};
+        }
         callRes = sqlite3_step(d->preparedStmt);
     }
 
@@ -198,13 +204,12 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
         LOG_ERROR("EXECUTE FAILED:", d->lastErrorText, "Err code:", callRes);
         return std::nullopt;
     }
-    LOG_OK("EXECUTE SUCCEED");
     return res;
 }
 
 bool SQLiteExecutor::execAsync(const std::string &queryStr, const std::function<void (std::vector<DBRow> &&)> &execCallback)
 {
-    LOG_EMPTY("EXECUTING QUERY:\"", queryStr, "\"");
+    LOG_INFO("EXECUTING ASYNC QUERY:\"", queryStr, "\"");
 
     char *errorMessage {nullptr};
     d->lastQuery = queryStr;
@@ -216,7 +221,6 @@ bool SQLiteExecutor::execAsync(const std::string &queryStr, const std::function<
         LOG_ERROR("EXECUTE ERROR: \"", d->lastErrorText, "\"");
         return false;
     }
-    LOG_OK("EXECUTE SUCCEED");
     return true;
 }
 

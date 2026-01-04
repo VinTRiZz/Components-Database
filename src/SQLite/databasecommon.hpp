@@ -21,12 +21,11 @@ namespace Database
 {
 
 using DBCellInteger = std::optional<int64_t>;
+using DBCellDouble = std::optional<double>;
 using DBCellString = std::optional<std::string>;
 
-typedef std::variant<DBCellString, DBCellInteger> DBCell;
+typedef std::variant<DBCellString, DBCellInteger, DBCellDouble> DBCell;
 typedef std::vector<DBCell> DBRow;
-
-std::string cellDataToString(const DBCell& cellData);
 
 // TODO: Обработать все типы?
 enum ColumnType : int {
@@ -39,5 +38,8 @@ enum ColumnType : int {
 std::string columnTypeToText(ColumnType ct);
 ColumnType columnTypeFromText(const std::string& ct);
 
+std::string cellDataToString(const DBCell& cellData);
+DBCell      createNullValue(ColumnType ct);
+bool        cellDataIsNull(const DBCell& cellData);
 }
 

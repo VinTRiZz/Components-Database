@@ -2,19 +2,6 @@
 
 namespace Database {
 
-std::string cellDataToString(const DBCell &cellData)
-{
-    if (std::holds_alternative<DBCellString>(cellData)) {
-        return std::string("'") + (std::get<DBCellString>(cellData).has_value() ? std::get<DBCellString>(cellData).value() : "") + "'";
-    }
-
-    if (std::holds_alternative<DBCellInteger>(cellData)) {
-        return (std::get<DBCellInteger>(cellData).has_value() ? std::to_string(std::get<DBCellInteger>(cellData).value()) : "");
-    }
-
-    return {};
-}
-
 std::string columnTypeToText(ColumnType ct)
 {
     switch (ct)
@@ -55,6 +42,42 @@ ColumnType columnTypeFromText(const std::string &ct)
     }
 
     return CT_UNDEFINED;
+}
+
+std::string cellDataToString(const DBCell &cellData)
+{
+    if (std::holds_alternative<DBCellString>(cellData)) {
+        return std::string("'") + (std::get<DBCellString>(cellData).has_value() ? std::get<DBCellString>(cellData).value() : "") + "'";
+    }
+
+    if (std::holds_alternative<DBCellInteger>(cellData)) {
+        return (std::get<DBCellInteger>(cellData).has_value() ? std::to_string(std::get<DBCellInteger>(cellData).value()) : "");
+    }
+
+    if (std::holds_alternative<DBCellDouble>(cellData)) {
+        return (std::get<DBCellDouble>(cellData).has_value() ? std::to_string(std::get<DBCellDouble>(cellData).value()) : "");
+    }
+
+    return {};
+}
+
+DBCell createNullValue(ColumnType ct)
+{
+    switch (ct)
+    {
+    case CT_UNDEFINED:  throw std::invalid_argument("Invalid column type (undefined)");
+
+    case CT_TEXT:       return DBCellString();
+    case CT_INTEGER:    return DBCellInteger();
+    case CT_DOUBLE:     return DBCellDouble();
+    case CT_BYTES:      return DBCellString();
+    }
+    return DBCellDouble();
+}
+
+bool cellDataIsNull(const DBCell &cellData)
+{
+    return (cellDataToString(cellData).size() == 2);
 }
 
 }

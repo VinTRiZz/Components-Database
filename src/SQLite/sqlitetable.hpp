@@ -19,19 +19,20 @@ public:
         ColumnType type;
 
         bool isPrimaryKey {false};
-        std::optional<DBCell> defaultValue;
+        DBCell defaultValue;
         bool canBeNull {true};
 
         std::string referedColumn;
         std::string referenceDeleteAction {"CASCADE"};
     };
 
-    SQLiteTable(const std::string& tableName, SQLiteDatabase& db);
+    SQLiteTable(SQLiteDatabase& db);
 
     bool beginTransaction();
     bool commitTransaction();
     bool rollbackTransaction();
 
+    void setTable(const std::string& tableName);
     std::string getName() const;
     bool isTableExist() const;
     std::string getLastError() const;
@@ -53,6 +54,9 @@ private:
 
     std::string m_name;
     std::list<ColumnInfo> m_columns;
+
+    void initColumns();
+    std::optional<DBCell> parseDefaultValue(const char* sqlite_default, ColumnType col_type);
 };
 
 }
