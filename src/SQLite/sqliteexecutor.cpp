@@ -124,7 +124,7 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
         return std::nullopt;
     }
 
-//    LOG_DEBUG("EXECUTING QUERY:\"", queryStr, "\"");
+//    LOG_DEBUG_SYNC("EXECUTING QUERY:\"", queryStr, "\"");
     if (!queryStr.empty()) {
         if (!prepare(queryStr)) {
             return std::nullopt;

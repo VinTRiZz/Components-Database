@@ -300,8 +300,8 @@ std::vector<DBRow> SQLiteTable::getRow(const std::vector<std::string>& cols, con
         query += " FROM " + m_name;
     }
     return m_executor->exec(query +
-                            (whereCondition.empty() ? "" : std::string("WHERE ") + whereCondition) +
-                            (orderCondition.empty() ? "" : std::string("ORDER BY ") + orderCondition)).value();
+                            (whereCondition.empty() ? "" : std::string(" WHERE ") + whereCondition) +
+                            (orderCondition.empty() ? "" : std::string(" ORDER BY ") + orderCondition)).value();
 }
 
 void SQLiteTable::initColumns()
