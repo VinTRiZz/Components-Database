@@ -31,9 +31,9 @@ SQLiteDatabase::SQLiteDatabase() :
 
 SQLiteDatabase::~SQLiteDatabase()
 {
-    for (auto * pCon : d->executors) {
-        removeConnection(pCon);
-    }
+//    for (auto * pCon : d->executors) {
+//        removeConnection(pCon);
+//    }
 }
 
 void SQLiteDatabase::setThreadsafe()
