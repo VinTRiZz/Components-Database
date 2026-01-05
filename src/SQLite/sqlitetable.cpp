@@ -308,7 +308,7 @@ void SQLiteTable::initColumns()
 {
     auto tableInfo = m_executor->exec("PRAGMA table_info(\"" + m_name + "\")");
     if (!tableInfo.has_value()) {
-        LOG_WARNING("Failed to configure table", m_name);
+        LOG_WARNING("Failed to configure table", m_name, "reason: no table data found");
         return;
     }
 

@@ -87,6 +87,12 @@ bool SQLiteExecutor::rollbackTransaction()
 
 bool SQLiteExecutor::prepare(const std::string &queryStr) const
 {
+    // Простейшая защита выполнения
+    if (std::count(queryStr.begin(), queryStr.end(), ';') > 0) {
+        d->lastErrorText = "SQL injection detected";
+        return false;
+    }
+
     auto bindRes = sqlite3_prepare(d->dbConnection, queryStr.c_str(), -1, &d->preparedStmt, NULL);
     if (bindRes == SQLITE_OK) {
         d->queryPrepared = queryStr;
@@ -118,7 +124,7 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
         return std::nullopt;
     }
 
-    LOG_INFO("EXECUTING QUERY:\"", queryStr, "\"");
+//    LOG_DEBUG("EXECUTING QUERY:\"", queryStr, "\"");
     if (!queryStr.empty()) {
         if (!prepare(queryStr)) {
             return std::nullopt;
@@ -202,7 +208,6 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
     // Check if error exist
     if (callRes != SQLITE_DONE) {
         d->lastErrorText = sqlite3_errmsg(d->dbConnection);
-        LOG_ERROR("EXECUTE FAILED:", d->lastErrorText, "Err code:", callRes);
         return std::nullopt;
     }
     return res;
@@ -210,19 +215,8 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
 
 bool SQLiteExecutor::execAsync(const std::string &queryStr, const std::function<void (std::vector<DBRow> &&)> &execCallback)
 {
-    LOG_INFO("EXECUTING ASYNC QUERY:\"", queryStr, "\"");
-
-    char *errorMessage {nullptr};
-    d->lastQuery = queryStr;
-
-    // Execute SQL statement
-    if (sqlite3_exec(d->dbConnection, queryStr.c_str(), DB_SQLITE_INTERNAL_QUERY_CALLBACK, (void*)&execCallback, &errorMessage) != SQLITE_OK) {
-        d->lastErrorText = errorMessage;
-        sqlite3_free(errorMessage);
-        LOG_ERROR("EXECUTE ERROR: \"", d->lastErrorText, "\"");
-        return false;
-    }
-    return true;
+    LOG_ERROR("Async execution not implemented");
+    return false;
 }
 
 std::string SQLiteExecutor::getLastQuery() const
