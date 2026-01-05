@@ -1,4 +1,5 @@
 COMPONENTS_CONFIGURE_COMPONENT(Database
+    Qt5::Core
     sqlite3
 )
 
