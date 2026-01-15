@@ -1,6 +1,7 @@
 #include "sqliteexecutor.hpp"
 
 #include <Components/Logger/Logger.h>
+#include <Components/Common/AccessManager.h>
 
 #include <sqlite3.h>
 #include <boost/scope_exit.hpp>
@@ -21,6 +22,8 @@ namespace Database {
 
 struct SQLiteExecutor::Impl
 {
+    Common::AccessManager& accessManager;
+
     // SQLite C library things
     sqlite3 *dbConnection {nullptr};
     sqlite3_stmt* preparedStmt {nullptr};
@@ -28,12 +31,10 @@ struct SQLiteExecutor::Impl
     std::string lastQuery;
     std::string queryPrepared;
     std::string lastErrorText;
-
-    std::list<std::shared_future<bool> > asyncQueries;
 };
 
 SQLiteExecutor::SQLiteExecutor(SQLiteDatabase &db) :
-    d {new Impl}
+    d {new Impl{db.getAccessManager()}}
 {
     d->dbConnection = static_cast<sqlite3*>(db.createConnection(this));
 }
@@ -117,106 +118,112 @@ bool SQLiteExecutor::bind(int parameterNumber, const DBCell &value)
     return false;
 }
 
-std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &queryStr) const
+std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &queryStr, bool isReadOperation) const
 {
-    if (queryStr.empty() && d->queryPrepared.empty()) {
-        d->lastErrorText = "Empty query";
-        return std::nullopt;
-    }
-
-//    LOG_DEBUG_SYNC("EXECUTING QUERY:\"", queryStr, "\"");
-    if (!queryStr.empty()) {
-        if (!prepare(queryStr)) {
-            return std::nullopt;
+    std::optional<std::vector<DBRow> > execRes;
+    auto execFunc = [&]() -> void {
+        if (queryStr.empty() && d->queryPrepared.empty()) {
+            d->lastErrorText = "Empty query";
+            execRes = std::nullopt;
         }
-    }
 
-    BOOST_SCOPE_EXIT(d) {
-        sqlite3_finalize(d->preparedStmt);
-        d->preparedStmt = nullptr;
-    } BOOST_SCOPE_EXIT_END;
+    //    LOG_DEBUG_SYNC("EXECUTING QUERY:\"", queryStr, "\"");
+        if (!queryStr.empty()) {
+            if (!prepare(queryStr)) {
+                execRes = std::nullopt;
+            }
+        }
 
+        BOOST_SCOPE_EXIT(d) {
+            sqlite3_finalize(d->preparedStmt);
+            d->preparedStmt = nullptr;
+        } BOOST_SCOPE_EXIT_END;
 
-    // Determine column types
-    std::map<int, ColumnType> columnTypes;
-    auto colCount = sqlite3_column_count(d->preparedStmt);
-    for (int i = 0; i < colCount; i++) {
-//        const char* colName = sqlite3_column_name(d->preparedStmt, i);
-        const char* colType = sqlite3_column_decltype(d->preparedStmt, i);
+        // Determine column types
+        std::map<int, ColumnType> columnTypes;
+        auto colCount = sqlite3_column_count(d->preparedStmt);
+        for (int i = 0; i < colCount; i++) {
+    //        const char* colName = sqlite3_column_name(d->preparedStmt, i);
+            const char* colType = sqlite3_column_decltype(d->preparedStmt, i);
 
-        columnTypes.emplace(std::make_pair(i, (colType == NULL ? ColumnType::CT_TEXT : columnTypeFromText(colType))));
-    }
+            columnTypes.emplace(std::make_pair(i, (colType == NULL ? ColumnType::CT_TEXT : columnTypeFromText(colType))));
+        }
 
-    // Harvest rows
-    std::vector<DBRow> res;
-    DBRow tmpRow(colCount);
-    int callRes = sqlite3_step(d->preparedStmt);
-    while (callRes == SQLITE_ROW) {
-        for (int i = 0; i < colCount; ++i) {
-            int columnType = sqlite3_column_type(d->preparedStmt, i);
+        // Harvest rows
+        std::vector<DBRow> res;
+        DBRow tmpRow(colCount);
+        int callRes = sqlite3_step(d->preparedStmt);
+        while (callRes == SQLITE_ROW) {
+            for (int i = 0; i < colCount; ++i) {
+                int columnType = sqlite3_column_type(d->preparedStmt, i);
 
-            // Corner-case
-            if (columnType == SQLITE_BLOB) {
-                const void* blob = sqlite3_column_blob(d->preparedStmt, i);
-                int blobSize = sqlite3_column_bytes(d->preparedStmt, i);
-                if (blob && blobSize > 0) {
-                    std::string hexStr;
-                    const unsigned char* bytes = static_cast<const unsigned char*>(blob);
-                    for (int j = 0; j < blobSize; j++) {
-                        char hex[3];
-                        sprintf(hex, "%02x", bytes[j]);
-                        hexStr += hex;
+                // Corner-case
+                if (columnType == SQLITE_BLOB) {
+                    const void* blob = sqlite3_column_blob(d->preparedStmt, i);
+                    int blobSize = sqlite3_column_bytes(d->preparedStmt, i);
+                    if (blob && blobSize > 0) {
+                        std::string hexStr;
+                        const unsigned char* bytes = static_cast<const unsigned char*>(blob);
+                        for (int j = 0; j < blobSize; j++) {
+                            char hex[3];
+                            sprintf(hex, "%02x", bytes[j]);
+                            hexStr += hex;
+                        }
+                        tmpRow[i] = (DBCellString{hexStr});
+                    } else {
+                        tmpRow[i] = (DBCellString{std::nullopt});
                     }
-                    tmpRow[i] = (DBCellString{hexStr});
-                } else {
-                    tmpRow[i] = (DBCellString{std::nullopt});
+                    continue;
                 }
-                continue;
-            }
 
-            switch (columnType)
-            {
-            case SQLITE_NULL:
-                tmpRow[i] = createNullValue(columnTypes[i]);
-                break;
+                switch (columnType)
+                {
+                case SQLITE_NULL:
+                    tmpRow[i] = createNullValue(columnTypes[i]);
+                    break;
 
-            case SQLITE_INTEGER:
-                tmpRow[i] = (DBCellInteger{sqlite3_column_int64(d->preparedStmt, i)});
-                break;
+                case SQLITE_INTEGER:
+                    tmpRow[i] = (DBCellInteger{sqlite3_column_int64(d->preparedStmt, i)});
+                    break;
 
-            case SQLITE_FLOAT:
-                tmpRow[i] = (DBCellDouble{sqlite3_column_double(d->preparedStmt, i)});
-                break;
+                case SQLITE_FLOAT:
+                    tmpRow[i] = (DBCellDouble{sqlite3_column_double(d->preparedStmt, i)});
+                    break;
 
-            default: // for SQLITE_TEXT also
-                auto colText = sqlite3_column_text(d->preparedStmt, i);
-                if (colText == NULL) {
-                    tmpRow[i] = (DBCellString{});
-                } else {
-                    tmpRow[i] = (DBCellString{reinterpret_cast<const char*>(colText)});
+                default: // for SQLITE_TEXT also
+                    auto colText = sqlite3_column_text(d->preparedStmt, i);
+                    if (colText == NULL) {
+                        tmpRow[i] = (DBCellString{});
+                    } else {
+                        tmpRow[i] = (DBCellString{reinterpret_cast<const char*>(colText)});
+                    }
                 }
             }
+
+            res.push_back(tmpRow);
+            for (auto& v : tmpRow) {
+                v = {};
+            }
+            callRes = sqlite3_step(d->preparedStmt);
         }
 
-        res.push_back(tmpRow);
-        for (auto& v : tmpRow) {
-            v = {};
+        // Check if error exist
+        if (callRes != SQLITE_DONE) {
+            d->lastErrorText = sqlite3_errmsg(d->dbConnection);
+            execRes = std::nullopt;
         }
-        callRes = sqlite3_step(d->preparedStmt);
+        execRes = res;
+    };
+
+    if (isReadOperation) [[likely]] {
+        auto readFut = d->accessManager.addReader(execFunc);
+        readFut.wait();
+        return execRes;
     }
 
-    // Check if error exist
-    if (callRes != SQLITE_DONE) {
-        d->lastErrorText = sqlite3_errmsg(d->dbConnection);
-        return std::nullopt;
-    }
-    return res;
-}
-
-bool SQLiteExecutor::execAsync(const std::string &queryStr, const std::function<void (std::vector<DBRow> &&)> &execCallback)
-{
-    LOG_ERROR("Async execution not implemented");
-    return false;
+    auto writeFut = d->accessManager.addWriter(execFunc);
+    writeFut.wait();
+    return execRes;
 }
 
 std::string SQLiteExecutor::getLastQuery() const

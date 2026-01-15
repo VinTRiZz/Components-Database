@@ -1,6 +1,7 @@
 #include "sqlitetable.hpp"
 
 #include "sqliteexecutor.hpp"
+#include "sqlitedatabase.h"
 
 #include <Components/Logger/Logger.h>
 

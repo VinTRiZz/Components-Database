@@ -2,7 +2,9 @@
 
 #include "databasecommon.hpp"
 
-struct sqlite3;
+namespace Common {
+class AccessManager;
+}
 
 namespace Database {
 
@@ -30,8 +32,7 @@ public:
 
     bool prepare(const std::string& queryStr) const;
     bool bind(int parameterNumber, const DBCell& value);
-    std::optional<std::vector<DBRow> > exec(const std::string& queryStr = {}) const;
-    bool execAsync(const std::string& queryStr, const std::function<void(std::vector<DBRow>&&)>& execCallback);
+    std::optional<std::vector<DBRow> > exec(const std::string& queryStr = {}, bool isReadOperation = false) const; // TODO: Определять "читателя" иначе?
 
     std::string getLastQuery() const;
     std::string getLastError() const;

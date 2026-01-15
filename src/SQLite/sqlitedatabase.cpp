@@ -1,6 +1,7 @@
 #include "sqlitedatabase.h"
 
 #include <Components/Logger/Logger.h>
+#include <Components/Common/AccessManager.h>
 
 #include <sqlite3.h>
 
@@ -21,6 +22,8 @@ struct SQLiteDatabase::Impl
     std::set<SQLiteExecutor*>       executors;
     std::unique_lock<std::mutex>    writerMx;
     bool                            isAnyReading {false};
+
+    Common::AccessManager accessManager;
 };
 
 SQLiteDatabase::SQLiteDatabase() :
@@ -31,15 +34,7 @@ SQLiteDatabase::SQLiteDatabase() :
 
 SQLiteDatabase::~SQLiteDatabase()
 {
-//    for (auto * pCon : d->executors) {
-//        removeConnection(pCon);
-//    }
-}
 
-void SQLiteDatabase::setThreadsafe()
-{
-    sqlite3_config(SQLITE_CONFIG_SERIALIZED);
-    sqlite3_initialize();
 }
 
 bool SQLiteDatabase::setDatabase(const std::string &filePath)
@@ -88,8 +83,17 @@ std::string SQLiteDatabase::getLastError() const
     return d->lastErrorMessage;
 }
 
+Common::AccessManager &SQLiteDatabase::getAccessManager()
+{
+    return d->accessManager;
+}
+
 void *SQLiteDatabase::createConnection(SQLiteExecutor* requestingExecutor)
 {
+    if (!d->accessManager.isWorking()) {
+        d->accessManager.start();
+    }
+
     sqlite3* pCon {nullptr};
     if (sqlite3_open(d->dbPath.c_str(), &pCon) != SQLITE_OK) {
         sqlite3_close(pCon);
@@ -101,24 +105,6 @@ void *SQLiteDatabase::createConnection(SQLiteExecutor* requestingExecutor)
     d->executors.insert(requestingExecutor);
     LOG_OK("Connection", reinterpret_cast<uint64_t>(requestingExecutor) % 100'000, "created");
     return pCon;
-}
-
-void SQLiteDatabase::startReadMode(void *connectionHandler)
-{
-    if (d->writerMx.owns_lock()) {
-
-    }
-}
-
-void SQLiteDatabase::startWriteMode(void* connectionHandler)
-{
-
-}
-
-void SQLiteDatabase::removeConnection(SQLiteExecutor *requestingExecutor)
-{
-    d->executors.erase(requestingExecutor);
-    LOG_OK("Connection", reinterpret_cast<uint64_t>(requestingExecutor) % 100'000, "removed");
 }
 
 }

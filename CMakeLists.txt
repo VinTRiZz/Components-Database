@@ -10,3 +10,4 @@ else()
 endif()
 
 COMPONENTS_LINK_COMPONENT(Database Logger)
+COMPONENTS_LINK_COMPONENT(Database Common)
