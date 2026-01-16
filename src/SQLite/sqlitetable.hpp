@@ -133,7 +133,7 @@ public:
      * @param orderCondition    Условие, по которому сортировать результат. Не нужно писать ORDER BY
      * @return
      */
-    std::vector<DBRow> getRow(const std::vector<std::string> &cols = {}, const std::string& whereCondition = {}, const std::string& orderCondition = {}) const;
+    std::vector<DBRow> getRows(const std::vector<std::string> &cols = {}, const std::string& whereCondition = {}, const std::string& orderCondition = {}) const;
 
 private:
     std::shared_ptr<SQLiteExecutor> m_executor;

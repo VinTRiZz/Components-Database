@@ -285,7 +285,7 @@ bool SQLiteTable::removeRow(const std::string &whereCondition)
     return m_executor->exec(query).has_value();
 }
 
-std::vector<DBRow> SQLiteTable::getRow(const std::vector<std::string>& cols, const std::string &whereCondition, const std::string &orderCondition) const
+std::vector<DBRow> SQLiteTable::getRows(const std::vector<std::string>& cols, const std::string &whereCondition, const std::string &orderCondition) const
 {
     // SELECT id FROM tasks WHERE name='Test string'
 
@@ -302,12 +302,12 @@ std::vector<DBRow> SQLiteTable::getRow(const std::vector<std::string>& cols, con
     }
     return m_executor->exec(query +
                             (whereCondition.empty() ? "" : std::string(" WHERE ") + whereCondition) +
-                            (orderCondition.empty() ? "" : std::string(" ORDER BY ") + orderCondition)).value();
+                            (orderCondition.empty() ? "" : std::string(" ORDER BY ") + orderCondition), true).value();
 }
 
 void SQLiteTable::initColumns()
 {
-    auto tableInfo = m_executor->exec("PRAGMA table_info(\"" + m_name + "\")");
+    auto tableInfo = m_executor->exec("PRAGMA table_info(\"" + m_name + "\")", true);
     if (!tableInfo.has_value()) {
         LOG_WARNING("Failed to configure table", m_name, "reason: no table data found");
         return;
@@ -327,7 +327,7 @@ void SQLiteTable::initColumns()
 
 
     //    // 2. Получаем информацию о внешних ключах
-    tableInfo = m_executor->exec("PRAGMA foreign_key_list(" + m_name + ")");
+    tableInfo = m_executor->exec("PRAGMA foreign_key_list(" + m_name + ")", true);
     if (!tableInfo.has_value()) {
         return;
     }

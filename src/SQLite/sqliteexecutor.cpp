@@ -218,6 +218,7 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
     if (isReadOperation) [[likely]] {
         auto readFut = d->accessManager.addReader(execFunc);
         readFut.wait();
+        LOG_DEBUG("RD:", queryStr);
         return execRes;
     }
 
