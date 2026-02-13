@@ -53,7 +53,7 @@ std::string SQLiteTable::getLastError() const
 bool SQLiteTable::create(const std::list<ColumnInfo> &columns)
 {
     if (columns.empty()) {
-        LOG_ERROR("Can not create table with no columns");
+        COMPLOG_ERROR("Can not create table with no columns");
         return false;
     }
 
@@ -309,7 +309,7 @@ void SQLiteTable::initColumns()
 {
     auto tableInfo = m_executor->exec("PRAGMA table_info(\"" + m_name + "\")", true);
     if (!tableInfo.has_value()) {
-        LOG_WARNING("Failed to configure table", m_name, "reason: no table data found");
+        COMPLOG_WARNING("Failed to configure table", m_name, "reason: no table data found");
         return;
     }
 

@@ -98,12 +98,12 @@ void *SQLiteDatabase::createConnection(SQLiteExecutor* requestingExecutor)
     if (sqlite3_open(d->dbPath.c_str(), &pCon) != SQLITE_OK) {
         sqlite3_close(pCon);
         d->lastErrorMessage = sqlite3_errmsg(pCon);
-        LOG_ERROR("Connection", reinterpret_cast<uint64_t>(requestingExecutor) % 100'000, "failed to open");
+        COMPLOG_ERROR("Connection", reinterpret_cast<uint64_t>(requestingExecutor) % 100'000, "failed to open");
         return nullptr;
     }
 
     d->executors.insert(requestingExecutor);
-    LOG_OK("Connection", reinterpret_cast<uint64_t>(requestingExecutor) % 100'000, "created");
+    COMPLOG_OK("Connection", reinterpret_cast<uint64_t>(requestingExecutor) % 100'000, "created");
     return pCon;
 }
 

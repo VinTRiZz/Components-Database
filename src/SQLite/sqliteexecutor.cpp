@@ -127,7 +127,7 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
             execRes = std::nullopt;
         }
 
-    //    LOG_DEBUG_SYNC("EXECUTING QUERY:\"", queryStr, "\"");
+    //    COMPLOG_DEBUG_SYNC("EXECUTING QUERY:\"", queryStr, "\"");
         if (!queryStr.empty()) {
             if (!prepare(queryStr)) {
                 execRes = std::nullopt;
