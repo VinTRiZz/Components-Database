@@ -3,6 +3,8 @@
 #include "sqliteexecutor.hpp"
 #include "sqlitedatabase.h"
 
+#include <algorithm>
+
 #include <Components/Logger/Logger.h>
 
 namespace Database {
