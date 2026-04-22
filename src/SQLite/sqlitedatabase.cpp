@@ -1,4 +1,4 @@
-#include "sqlitedatabase.h"
+#include "sqlitedatabase.hpp"
 
 #include <Components/Logger/Logger.h>
 #include <Components/Common/AccessManager.h>

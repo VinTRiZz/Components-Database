@@ -8,7 +8,7 @@
 
 #include <map>
 
-#include "sqlitedatabase.h"
+#include "sqlitedatabase.hpp"
 
 static int DB_SQLITE_INTERNAL_QUERY_CALLBACK(void *data, int argc, char **argv, char **azColName)
 {

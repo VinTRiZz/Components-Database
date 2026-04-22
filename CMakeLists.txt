@@ -11,3 +11,12 @@ endif()
 
 COMPONENTS_LINK_COMPONENT(Database Logger)
 COMPONENTS_LINK_COMPONENT(Database Common)
+
+target_precompile_headers(Database PUBLIC
+    "src/SQLite/sqlitedatabase.hpp"
+    "src/SQLite/sqlitetable.hpp"
+)
+
+target_precompile_headers(Database PRIVATE
+    "src/SQLite/sqliteexecutor.hpp"
+)

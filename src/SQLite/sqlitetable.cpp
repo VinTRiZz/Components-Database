@@ -1,7 +1,7 @@
 #include "sqlitetable.hpp"
 
 #include "sqliteexecutor.hpp"
-#include "sqlitedatabase.h"
+#include "sqlitedatabase.hpp"
 
 #include <algorithm>
 
