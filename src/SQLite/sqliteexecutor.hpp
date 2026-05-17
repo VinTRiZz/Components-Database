@@ -2,10 +2,6 @@
 
 #include "databasecommon.hpp"
 
-namespace Common {
-class AccessManager;
-}
-
 namespace Database {
 
 class SQLiteDatabase;

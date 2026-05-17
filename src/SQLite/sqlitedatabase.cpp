@@ -1,7 +1,7 @@
 #include "sqlitedatabase.hpp"
 
 #include <Components/Logger/Logger.h>
-#include <Components/Common/AccessManager.h>
+#include <Components/ExtraClasses/AccessManager.h>
 
 #include <sqlite3.h>
 
@@ -23,7 +23,7 @@ struct SQLiteDatabase::Impl
     std::unique_lock<std::mutex>    writerMx;
     bool                            isAnyReading {false};
 
-    Common::AccessManager accessManager;
+    ExtraClasses::AccessManager accessManager;
 };
 
 SQLiteDatabase::SQLiteDatabase() :
@@ -83,7 +83,7 @@ std::string SQLiteDatabase::getLastError() const
     return d->lastErrorMessage;
 }
 
-Common::AccessManager &SQLiteDatabase::getAccessManager()
+ExtraClasses::AccessManager &SQLiteDatabase::getAccessManager()
 {
     return d->accessManager;
 }

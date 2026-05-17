@@ -1,7 +1,7 @@
 #include "sqliteexecutor.hpp"
 
 #include <Components/Logger/Logger.h>
-#include <Components/Common/AccessManager.h>
+#include <Components/ExtraClasses/AccessManager.h>
 
 #include <sqlite3.h>
 #include <boost/scope_exit.hpp>
@@ -22,7 +22,7 @@ namespace Database {
 
 struct SQLiteExecutor::Impl
 {
-    Common::AccessManager& accessManager;
+    ExtraClasses::AccessManager& accessManager;
 
     // SQLite C library things
     sqlite3 *dbConnection {nullptr};

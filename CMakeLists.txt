@@ -1,6 +1,7 @@
 if (COMPONENTS_IS_ENABLED_QT)
     COMPONENTS_CONFIGURE_COMPONENT(Database
         Qt5::Core
+        Qt5::Widgets
         sqlite3
     )
 else()
@@ -11,6 +12,7 @@ endif()
 
 COMPONENTS_LINK_COMPONENT(Database Logger)
 COMPONENTS_LINK_COMPONENT(Database Common)
+COMPONENTS_LINK_COMPONENT(Database ExtraClasses)
 
 target_precompile_headers(Database PUBLIC
     "src/SQLite/sqlitedatabase.hpp"

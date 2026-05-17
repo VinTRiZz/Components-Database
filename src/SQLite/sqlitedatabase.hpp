@@ -3,7 +3,7 @@
 #include <string>
 #include <memory>
 
-namespace Common {
+namespace ExtraClasses {
 class AccessManager;
 }
 
@@ -28,7 +28,7 @@ private:
 
     friend class SQLiteExecutor;
     void* createConnection(SQLiteExecutor* requestingExecutor);
-    Common::AccessManager& getAccessManager();
+    ExtraClasses::AccessManager& getAccessManager();
 };
 
 }
