@@ -1,6 +1,6 @@
 #pragma once
 
-#include "databasecommon.hpp"
+#include <Components/Database/Common.h>
 
 namespace Database {
 

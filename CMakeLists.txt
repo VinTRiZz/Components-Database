@@ -1,14 +1,6 @@
-if (COMPONENTS_IS_ENABLED_QT)
-    COMPONENTS_CONFIGURE_COMPONENT(Database
-        Qt5::Core
-        Qt5::Widgets
-        sqlite3
-    )
-else()
-    COMPONENTS_CONFIGURE_COMPONENT(Database
-        sqlite3
-    )
-endif()
+COMPONENTS_CONFIGURE_COMPONENT(Database
+    sqlite3
+)
 
 COMPONENTS_LINK_COMPONENT(Database Logger)
 COMPONENTS_LINK_COMPONENT(Database Common)

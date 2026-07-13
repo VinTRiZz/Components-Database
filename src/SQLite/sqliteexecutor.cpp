@@ -108,11 +108,11 @@ bool SQLiteExecutor::prepare(const std::string &queryStr) const
 bool SQLiteExecutor::bind(int parameterNumber, const DBCell &value)
 {
     if (std::holds_alternative<DBCellInteger>(value)) {
-        return (sqlite3_bind_int(d->preparedStmt, parameterNumber, std::get<DBCellInteger>(value).value())
+        return (sqlite3_bind_int(d->preparedStmt, parameterNumber, std::get<DBCellInteger>(value))
                 == SQLITE_OK);
     } else if (std::holds_alternative<DBCellString>(value)) {
         auto cellTextData = std::get<DBCellString>(value);
-        return (sqlite3_bind_text(d->preparedStmt, parameterNumber, cellDataToString(cellTextData).c_str(), cellTextData.value().size(), SQLITE_STATIC)
+        return (sqlite3_bind_text(d->preparedStmt, parameterNumber, cellValueToString(cellTextData).c_str(), cellTextData.size(), SQLITE_STATIC)
                 == SQLITE_OK);
     }
     return false;
@@ -171,7 +171,7 @@ std::optional<std::vector<DBRow> > SQLiteExecutor::exec(const std::string &query
                         }
                         tmpRow[i] = (DBCellString{hexStr});
                     } else {
-                        tmpRow[i] = (DBCellString{std::nullopt});
+                        tmpRow[i] = (DBCellString{});
                     }
                     continue;
                 }

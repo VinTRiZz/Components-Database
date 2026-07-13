@@ -44,7 +44,8 @@ std::string SQLiteTable::getName() const
 bool SQLiteTable::isTableExist() const
 {
     auto res = m_executor->exec(std::string("PRAGMA table_info(") + m_name + ")");
-    return (res.has_value() && (res.value().size() > 0));
+    if (!res) { return false; }
+    return (res.has_value() && (res->size() > 0));
 }
 
 std::string SQLiteTable::getLastError() const
@@ -68,7 +69,7 @@ bool SQLiteTable::create(const std::list<ColumnInfo> &columns)
                 columnTypeToText(col.type) + " " +
                 (col.isPrimaryKey ? "PRIMARY KEY AUTOINCREMENT " : "") +
                 (col.canBeNull ? "" : "NOT NULL ") +
-                (cellDataIsNull(col.defaultValue) ? std::string("DEFAULT ") + cellDataToString(col.defaultValue) : "") +
+                (cellDataIsNull(col.defaultValue) ? std::string("DEFAULT ") + cellValueToString(col.defaultValue) : "") +
                 ","
                 ;
         if (!col.referedColumn.empty()) {
@@ -103,7 +104,7 @@ bool SQLiteTable::addColumn(const ColumnInfo &columnConfig)
                 columnTypeToText(columnConfig.type) + " " +
                 (columnConfig.isPrimaryKey ? "PRIMARY KEY AUTOINCREMENT " : "") +
                 (columnConfig.canBeNull ? "" : "NOT NULL ") +
-                (cellDataIsNull(columnConfig.defaultValue) ? std::string("DEFAULT ") + cellDataToString(columnConfig.defaultValue) : "");
+                (cellDataIsNull(columnConfig.defaultValue) ? std::string("DEFAULT ") + cellValueToString(columnConfig.defaultValue) : "");
 
         auto res = m_executor->exec(std::string("ALTER TABLE ") + m_name + " ADD COLUMN " + columnQuery).has_value();
         if (res) {
@@ -241,7 +242,7 @@ bool SQLiteTable::addRow(DBRow &&rowData)
     query += m_name + " (" + colsQuery + ") VALUES (";
 
     for (auto& v : rowData) {
-        query += cellDataToString(v) + ",";
+        query += cellValueToString(v) + ",";
     }
     query.pop_back();
     query += ")";
@@ -255,7 +256,7 @@ bool SQLiteTable::addRow(std::map<std::string, DBCell> &&rowNamedData)
     std::string valuesQuery;
     for (auto& [colName, colValue] : rowNamedData) {
         colsQuery += colName + ",";
-        valuesQuery += cellDataToString(colValue) + ",";
+        valuesQuery += cellValueToString(colValue) + ",";
     }
     colsQuery.pop_back();
     valuesQuery.pop_back();
@@ -271,7 +272,7 @@ bool SQLiteTable::updateRow(std::map<std::string, DBCell> &&rowNamedData, const 
 
     std::string dataQuery;
     for (auto& [colName, colValue] : rowNamedData) {
-        query += colName + "=" + cellDataToString(colValue) + ",";
+        query += colName + "=" + cellValueToString(colValue) + ",";
     }
     query.pop_back();
     query += (whereCondition.empty() ? "" : std::string(" WHERE ") + whereCondition);
@@ -302,9 +303,13 @@ std::vector<DBRow> SQLiteTable::getRows(const std::vector<std::string>& cols, co
         query.pop_back();
         query += " FROM " + m_name;
     }
-    return m_executor->exec(query +
+    auto res = m_executor->exec(query +
                             (whereCondition.empty() ? "" : std::string(" WHERE ") + whereCondition) +
-                            (orderCondition.empty() ? "" : std::string(" ORDER BY ") + orderCondition), true).value();
+                            (orderCondition.empty() ? "" : std::string(" ORDER BY ") + orderCondition), true);
+    if (!res.has_value()) {
+        return {};
+    }
+    return res.value();
 }
 
 void SQLiteTable::initColumns()
@@ -319,11 +324,11 @@ void SQLiteTable::initColumns()
     for (auto& row : tableInfo.value()) {
         ColumnInfo col;
         int currentColNo = 1;
-        col.name = std::get<DBCellString>(row[currentColNo++]).value();
-        col.type = columnTypeFromText(std::get<DBCellString>(row[currentColNo++]).value());
-        col.canBeNull = (std::get<DBCellInteger>(row[currentColNo++]).value() == 0);
+        col.name = std::get<DBCellString>(row[currentColNo++]);
+        col.type = columnTypeFromText(std::get<DBCellString>(row[currentColNo++]));
+        col.canBeNull = (std::get<DBCellInteger>(row[currentColNo++]) == 0);
         col.defaultValue = row[currentColNo++];
-        col.isPrimaryKey = (std::get<DBCellInteger>(row[currentColNo++]).value() != 0);
+        col.isPrimaryKey = (std::get<DBCellInteger>(row[currentColNo++]) != 0);
         m_columns.push_back(col);
     }
 
@@ -334,12 +339,12 @@ void SQLiteTable::initColumns()
         return;
     }
     for (auto& row : tableInfo.value()) {
-        auto colFrom = std::find_if(m_columns.begin(), m_columns.end(), [targetName = std::get<DBCellString>(row[3]).value()](auto& colInfo){
+        auto colFrom = std::find_if(m_columns.begin(), m_columns.end(), [targetName = std::get<DBCellString>(row[3])](auto& colInfo){
             return (colInfo.name == targetName);
         });
-        colFrom->referedColumn = std::get<DBCellString>(row[2]).value();
-        colFrom->referenceUpdateAction = std::get<DBCellString>(row[5]).value();
-        colFrom->referenceDeleteAction = std::get<DBCellString>(row[6]).value();
+        colFrom->referedColumn = std::get<DBCellString>(row[2]);
+        colFrom->referenceUpdateAction = std::get<DBCellString>(row[5]);
+        colFrom->referenceDeleteAction = std::get<DBCellString>(row[6]);
     }
 }
 
