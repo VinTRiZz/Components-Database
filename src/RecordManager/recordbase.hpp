@@ -53,7 +53,7 @@ public:
         }, id);
     }
     std::optional<id_t> getId() const {
-        if (!std::holds_alternative<id_t>(m_id)) {
+        if (std::holds_alternative<id_t>(m_id)) {
             return std::get<id_t>(m_id);
         }
         return {};
