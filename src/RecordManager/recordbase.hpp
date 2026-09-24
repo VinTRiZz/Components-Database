@@ -39,7 +39,7 @@ public:
     virtual bool initFromRecord(const DBRowNamed& iRecord) {
         auto idColIt = iRecord.find(m_idColumnName);
         if (iRecord.end() == idColIt) {
-            m_error.setCode(ExtraClasses::ErrorCode_UNKNOWN_ERROR);
+            m_error.setCode(ExtraClasses::ErrorCode::LogicalInvalidValue);
             m_error.setDetailText(std::string("No such column: ") + getIdColumn().data());
             return false;
         }
