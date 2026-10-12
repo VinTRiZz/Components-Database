@@ -40,7 +40,7 @@ public:
         auto idColIt = iRecord.find(m_idColumnName);
         if (iRecord.end() == idColIt) {
             m_error.setCode(ExtraClasses::ErrorCode::LogicalInvalidValue);
-            m_error.setDetailText(std::string("No such column: ") + getIdColumn().data());
+            m_error.setDetailText(std::string("No such column: ") + getIdColumn().data() + " in table: " + m_table);
             return false;
         }
         m_id = idColIt->second;
