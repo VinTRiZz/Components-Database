@@ -1,18 +1,17 @@
 #include <gtest/gtest.h>
 
-#include "../src/SQLite/sqlitedatabase.h"
+#include <Components/Logger/Logger.h>
+#include <Components/Database/SQlite.h>
+#include <Components/ExtraClasses/Utility/SignalDecorator.h>
 
-TEST() {
+#include <thread>
+
+TEST(Components_Database, CommonUsing) {
+    COMPLOG_SET_LOGSDIR(".");
+
     Database::SQLiteDatabase db;
-    if (!db.setDatabase(":memory:")) {
-        COMPLOG_ERROR("Failed to open / create database. Error text:", db.getLastError());
-        return 1;
-    }
-
-    if (!db.isValid()) {
-        COMPLOG_ERROR("Failed to open / create database, not valid. Error text:", db.getLastError());
-        return 1;
-    }
+    ASSERT_TRUE(db.setDatabase(":memory:")) << "Failed to open / create database. Error text: " << db.getLastError();
+    ASSERT_TRUE(db.isValid()) << "Failed to open / create database, not valid. Error text: " << db.getLastError();
 
     Database::SQLiteTable table(db);
     table.setTable("test_table");
@@ -45,64 +44,54 @@ TEST() {
     table.beginTransaction();
     if (table.create(cols)) {
         table.commitTransaction();
-        COMPLOG_OK("Transaction commited");
+        COMPLOG_SYNC_OK("Transaction commited");
     } else {
         table.rollbackTransaction();
-        COMPLOG_ERROR("Transaction failed to commit:", table.getLastError());
+        COMPLOG_SYNC_ERROR("Transaction failed to commit:", table.getLastError());
     }
 
     for (int i = 0; i < 10; ++i) {
-        if (!table.addRow({
+        ASSERT_TRUE(table.addRow({
             {"name",        std::string("Item ") + std::to_string(i)},
             {"description", std::string("Description of item no ") + std::to_string(i)}
-        })) {
-            COMPLOG_ERROR("Failed to add row:", table.getLastError());
-            return 1;
-        }
+        })) << "Failed to add row:" << table.getLastError();
     }
 
-    if (!table.updateRow(
+    ASSERT_TRUE(table.updateRow(
         {
             {"name",        std::string("Changed item")},
             {"description", std::string("My custom description")}
         },
-        "id = 5")) {
-        COMPLOG_ERROR("Failed to update row:", table.getLastError());
-        return 1;
-    }
+            "id = 5")) << "Failed to update row:" << table.getLastError();
+    ASSERT_TRUE(table.removeRow("id = 4")) <<"Failed to remove row:" << table.getLastError();
 
-    if (!table.removeRow("id = 4")) {
-        COMPLOG_ERROR("Failed to remove row:", table.getLastError());
-        return 1;
-    }
-
-    Common::SignalDecorator sigg;
+    ExtraClasses::SignalDecorator sigg;
     auto begTime = std::chrono::high_resolution_clock::now();
 
     std::thread testTh([&table, &sigg](){
         sigg.waitSignal();
         auto rows1 = table.getRows();
-        COMPLOG_DEBUG("1 operation completed");
+        COMPLOG_SYNC_DEBUG("1 operation completed");
         for (auto& r : rows1) {
-            COMPLOG_INFO("1 Row data:", Database::cellDataToString(r[0]), Database::cellDataToString(r[1]), Database::cellDataToString(r[2]));
+            COMPLOG_SYNC_INFO("1 Row data:", Database::cellValueToString(r[0]), Database::cellValueToString(r[1]), Database::cellValueToString(r[2]));
         }
     });
 
     std::thread testTh2([&table, &sigg](){
         sigg.waitSignal();
         auto rows2 = table.getRows();
-        COMPLOG_DEBUG("2 operation completed");
+        COMPLOG_SYNC_DEBUG("2 operation completed");
         for (auto& r : rows2) {
-            COMPLOG_INFO("2 Row data:", Database::cellDataToString(r[0]), Database::cellDataToString(r[1]), Database::cellDataToString(r[2]));
+            COMPLOG_SYNC_INFO("2 Row data:", Database::cellValueToString(r[0]), Database::cellValueToString(r[1]), Database::cellValueToString(r[2]));
         }
     });
 
     std::thread testTh3([&table, &sigg](){
         sigg.waitSignal();
         auto rows3 = table.getRows();
-        COMPLOG_DEBUG("3 operation completed");
+        COMPLOG_SYNC_DEBUG("3 operation completed");
         for (auto& r : rows3) {
-            COMPLOG_INFO("3 Row data:", Database::cellDataToString(r[0]), Database::cellDataToString(r[1]), Database::cellDataToString(r[2]));
+            COMPLOG_SYNC_INFO("3 Row data:", Database::cellValueToString(r[0]), Database::cellValueToString(r[1]), Database::cellValueToString(r[2]));
         }
     });
 
@@ -113,7 +102,7 @@ TEST() {
     tmpc.referenceDeleteAction = "CASCADE";
     tmpc.referenceUpdateAction = "CASCADE";
 
-    COMPLOG_DEBUG("Waiting...");
+    COMPLOG_SYNC_DEBUG("Waiting...");
     sigg.emitForAll();
     if (testTh.joinable()) {
         testTh.join();
@@ -124,29 +113,16 @@ TEST() {
     if (testTh3.joinable()) {
         testTh3.join();
     }
-    COMPLOG_DEBUG("Wait complete");
+    COMPLOG_SYNC_DEBUG("Wait complete");
 
     auto endTime = std::chrono::high_resolution_clock::now();
-    COMPLOG_INFO("Time elapsed:", std::chrono::duration_cast<std::chrono::microseconds>(endTime - begTime).count());
+    COMPLOG_SYNC_INFO("Time elapsed:", std::chrono::duration_cast<std::chrono::microseconds>(endTime - begTime).count());
 
     table.beginTransaction();
-    if (!table.addColumn(tmpc)) {
-        COMPLOG_ERROR("Failed to add column:", table.getLastError());
-        table.rollbackTransaction();
-        return 1;
-    } else {
-        table.commitTransaction();
-    }
+    ASSERT_TRUE(table.addColumn(tmpc)) << "Failed to add column:" << table.getLastError();
+    table.commitTransaction();
 
     table.beginTransaction();
-    if (!table.removeColumn("ref_id")) {
-        COMPLOG_ERROR("Failed to remove column:", table.getLastError());
-        table.rollbackTransaction();
-        return 1;
-    } else {
-        table.commitTransaction();
-    }
-
-    COMPLOG_OK("App exited normally");
-    return 0;
+    ASSERT_TRUE(table.removeColumn("ref_id")) << "Failed to remove column:" << table.getLastError();
+    table.commitTransaction();
 }

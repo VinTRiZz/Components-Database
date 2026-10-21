@@ -2,6 +2,7 @@
 
 #include <Components/Database/Common.h>
 
+#include <memory>
 #include <list>
 #include <map>
 
