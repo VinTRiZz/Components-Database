@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#ifdef COMPONENTS_SW_database_sqlite
+
 #include <Components/Logger/Logger.h>
 #include <Components/Database/SQlite.h>
 #include <Components/ExtraClasses/Utility/SignalDecorator.h>
@@ -126,3 +128,5 @@ TEST(Components_Database, CommonUsing) {
     ASSERT_TRUE(table.removeColumn("ref_id")) << "Failed to remove column:" << table.getLastError();
     table.commitTransaction();
 }
+
+#endif // COMPONENTS_SW_database_sqlite
