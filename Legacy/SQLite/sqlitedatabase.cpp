@@ -46,7 +46,7 @@ bool SQLiteDatabase::setDatabase(const std::string &filePath)
     }
 
     if (!std::filesystem::exists(std::filesystem::path(filePath).parent_path())) {
-        d->lastErrorMessage = "Invalid path (file either it's directory not exists)";
+        d->lastErrorMessage = "Invalid path (file either is directory either not exists)";
         return false;
     }
 

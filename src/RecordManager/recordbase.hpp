@@ -18,7 +18,7 @@ public:
     using id_t = IdT;
     using id_nullable_t = std::optional<IdT>;
 
-    explicit RecordBase(const std::string& tableName, const std::string& idColumn = "id") {
+    explicit RecordBase(const std::string& tableName = {}, const std::string& idColumn = "id") {
         m_table = tableName;
         m_idColumnName = idColumn;
     }
@@ -66,6 +66,11 @@ private:
     DBCell      m_id {};
 
 protected:
+    // For lazy init
+    void setTable(const std::string& tableName) {
+        m_table = tableName;
+    }
+
     // Clean string from symbols like ', ;, etc.
     void fixStringValueIssues(std::string& inputStr) const {
         std::replace_if(inputStr.data(), inputStr.data() + inputStr.size(),

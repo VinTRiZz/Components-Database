@@ -4,7 +4,7 @@
 
 #include <string>
 #include <vector>
-#include <map>
+#include <unordered_map>
 
 #if __cplusplus >= 201703UL
 #include <optional>
@@ -35,7 +35,7 @@ using DBCellString  = std::string;
 // DB row managing
 using DBCell = std::variant<DBCellNull, DBCellString, DBCellInteger, DBCellDouble>;
 using DBRow = std::vector<DBCell>;
-using DBRowNamed = std::map<std::string, DBCell>;
+using DBRowNamed = std::unordered_map<std::string, DBCell>;
 
 // TODO: Add more type processing for SQLite and PSQL
 enum ColumnType : int {

@@ -20,32 +20,53 @@ using AbstractConnectionPtr = std::shared_ptr<AbstractConnection>;
 class AbstractConnection : public ExtraClasses::ErrorUserBase<ExtraClasses::ErrorBase>
 {
 public:
+    // Expect same args as execute() return
+    using queryCallback_t = std::function<void(std::optional<std::vector<DBRowNamed> >&&)>;
+
     AbstractConnection() = default;
     AbstractConnection(const std::string& appName, const std::string& connectionName);
 
     // Connection properties
-    void        setAppName(const std::string& appName);
+    bool        setAppName(const std::string& appName);
     std::string getAppName() const;
 
-    void        setName(const std::string& conName);
-    std::string getName(const std::string& conName);
+    bool        setName(const std::string& conName);
+    std::string getName();
 
-    void        setServer(const std::string &address, uint16_t port);
+    bool        setServer(const std::string &address, uint16_t port);
     std::string getServer() const;
     uint16_t    getServerPort() const;
 
-    void        setDatabase(const std::string &databaseName);
+    virtual bool        setDatabase(const std::string &databaseName);
     std::string getDatabase() const;
 
-    void setUser(const std::string &username, const std::string &password);
+    bool setUser(const std::string &username, const std::string &password);
     std::string getUsername() const;
     std::string getPassword() const;
 
-    // Execution working
-    using queryCallback_t = std::function<void(std::vector<DBRowNamed>&&, const std::string&)>; // arguments: Values and error
-    virtual std::optional<std::vector<DBRowNamed> > executeQuery(const std::string& queryStr, bool isSync = true) const = 0;
-    virtual void executeQueryAsync(const std::string& queryStr, queryCallback_t&& cbk) const = 0;
+    virtual bool beginTransaction() = 0;
+    virtual bool commitTransaction() = 0;
+    virtual bool rollbackTransaction() = 0;
+
+    /**
+     * @brief executeQuery  With empty argument, tries to execute prepared query
+     * @param queryStr
+     * @return              std::nullopt if query failed
+     */
+    virtual std::optional<std::vector<DBRowNamed> > executeQuery(const std::string& queryStr) = 0;
+
+    /**
+     * @brief executeQueryAsync Same as executeQuery, but calls queryCallback_t exit
+     * @param queryStr
+     * @param cbk
+     */
+    virtual bool executeQueryAsync(const std::string& queryStr, queryCallback_t&& cbk) = 0;
+
     virtual std::string cellDataToString(const DBCell &val) const;
+
+    virtual bool prepare(const std::string &queryStr) = 0;
+    virtual bool bind(int parameterNumber, const DBCell &value) = 0;
+    virtual bool bind(const std::string_view parameterName, const DBCell& value) = 0;
 
 private:
     std::string m_appName;
@@ -55,6 +76,10 @@ private:
     std::string m_databaseName;
     std::string m_username;
     std::string m_password;
+
+protected:
+    // Checks for basic SQL injection methods
+    bool containInjection(const std::string_view& queryStr) const;
 };
 
 } // namespace Database

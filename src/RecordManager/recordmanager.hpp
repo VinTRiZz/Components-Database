@@ -131,8 +131,7 @@ private:
                    + iRecord.getIdColumn().data() + " = " + iRecord.getIdString()
                 ;
         case QueryType::SelectAll:
-            return std::string("SELECT ")
-                   + recordToColumns(recordV) + " FROM "
+            return std::string("SELECT * FROM ")
                    + iRecord.getTable().data()
                    + " ORDER BY " + iRecord.getIdColumn().data() + " ASC"
                 ;
