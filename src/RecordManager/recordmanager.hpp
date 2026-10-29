@@ -16,7 +16,7 @@ namespace Database {
 class RecordManager;
 using RecordManagerPtr = std::shared_ptr<RecordManager>;
 
-class RecordManager : public ExtraClasses::ErrorUserBase<ExtraClasses::ErrorBase>
+class RecordManager : public ExtraClasses::ErrorUserBase<ExtraClasses::ErrorObject>
 {
     // CRUD operations (simple queries)
     enum class QueryType

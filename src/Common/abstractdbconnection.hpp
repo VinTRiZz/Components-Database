@@ -17,7 +17,7 @@ using AbstractConnectionPtr = std::shared_ptr<AbstractConnection>;
  * @brief The AbstractConnection class Object to describe connection to a database
  * @note Some parameters of a connection have a straight depend on a db (SQLite, PSQL, etc.)
  */
-class AbstractConnection : public ExtraClasses::ErrorUserBase<ExtraClasses::ErrorBase>
+class AbstractConnection : public ExtraClasses::ErrorUserBase<ExtraClasses::ErrorObject>
 {
 public:
     // Expect same args as execute() return

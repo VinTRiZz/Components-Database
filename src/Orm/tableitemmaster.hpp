@@ -17,7 +17,7 @@ using TableItemMasterHdl = ExtraClasses::Handler<TableItemMaster>;
 /**
  * @brief The TableItemMaster class Handle for a table, providing objects, according to Active Record pattern
  */
-class TableItemMaster : public ExtraClasses::ErrorUserBase<ExtraClasses::ErrorBase>
+class TableItemMaster : public ExtraClasses::ErrorUserBase<ExtraClasses::ErrorObject>
 {
 public:
     TableItemMaster(const RecordManager& recordManager);

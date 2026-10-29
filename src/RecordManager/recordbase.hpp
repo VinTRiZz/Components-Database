@@ -13,7 +13,7 @@ namespace Database {
  * @brief The RecordBase class Basic class for converting from/to DB records
  */
 template <typename IdT>
-class RecordBase : public ExtraClasses::ErrorUserBase<ExtraClasses::ErrorBase> {
+class RecordBase : public ExtraClasses::ErrorUserBase<ExtraClasses::ErrorObject> {
 public:
     using id_t = IdT;
     using id_nullable_t = std::optional<IdT>;
